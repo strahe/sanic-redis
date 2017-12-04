@@ -1,5 +1,5 @@
 from sanic import Sanic
-from aioredis import create_pool
+from aioredis import create_redis_pool
 
 
 class SanicRedis:
