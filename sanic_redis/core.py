@@ -25,7 +25,7 @@ class SanicRedis:
                         'maxsize', 'create_connection_timeout']:
                 if key in config:
                     _c.update({key: config.get(key)})
-            _redis = await create_pool(**_c)
+            _redis = await create_redis_pool(**_c)
 
             _app.redis = _redis
 
