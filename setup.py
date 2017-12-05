@@ -12,11 +12,11 @@ setup(
     packages=['sanic_redis'],
     install_requires=('sanic', 'aioredis'),
     zip_safe=False,
-    keywords=['sanic', 'redis', 'aiodearedis'],
+    keywords=['sanic', 'redis', 'aioredis'],
     classifiers=[
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3 :: Only',
         'Topic :: Internet :: WWW/HTTP :: Session',
-    ]
+    ],
 )
