@@ -34,6 +34,5 @@ class SanicRedis:
             _app.redis.close()
             await _app.redis.wait_closed()
 
-    async def acquire(self):
-        with await getattr(self.app, 'redis') as r:
-            return r
+    def acquire(self):
+        return getattr(self.app, 'redis')
