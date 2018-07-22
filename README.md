@@ -39,7 +39,7 @@ redis = SanicRedis(app)
     
 @app.route('/test1')
 async def test1(request):
-    with await redis.acquire() as r:
+    with await redis.conn as r:
         await r.set('key', 'value1')
         result = await r.get('key')
     return text(result)

@@ -6,6 +6,7 @@ class SanicRedis:
     def __init__(self, app: Sanic=None, redis_config: dict=None):
         self.app = app
         self.config = redis_config
+        self.conn = None
 
         if app:
             self.init_app(app=app)
@@ -28,11 +29,9 @@ class SanicRedis:
             _redis = await create_redis_pool(**_c)
 
             _app.redis = _redis
+            self.conn = _redis
 
         @app.listener('after_server_stop')
-        async def close_redis(_app, loop):
+        async def close_redis(_app, _loop):
             _app.redis.close()
             await _app.redis.wait_closed()
-
-    def acquire(self):
-        return getattr(self.app, 'redis')
