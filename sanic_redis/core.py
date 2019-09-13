@@ -23,7 +23,7 @@ class SanicRedis:
             else:
                 config = _app.config.get('REDIS')
             for key in ['address', 'db', 'password', 'ssl', 'encoding', 'minsize',
-                        'maxsize', 'create_connection_timeout']:
+                        'maxsize', 'timeout']:
                 if key in config:
                     _c.update({key: config.get(key)})
             _redis = await create_redis_pool(**_c)
