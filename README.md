@@ -36,7 +36,8 @@ app.config.update(
 
 
 redis = SanicRedis(app)
-    
+#redis = SanicRedis()
+#redis.init_app(app)
     
 @app.route('/test1')
 async def test1(request):
@@ -61,7 +62,7 @@ if __name__ == '__main__':
 Create multiple aioredis instances
 ------------
 
-```.python
+```python
 from sanic import Sanic
 from sanic.response import text
 from sanic_redis import SanicRedis

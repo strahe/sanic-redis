@@ -8,6 +8,7 @@ setup(
     long_description='sanic-redis is a sanic framework extension which adds support for the redis.',
     url='https://github.com/strahe/sanic-redis',
     author='strahe',
+    author_email="www@strahe.com",
     license='MIT',
     packages=['sanic_redis'],
     install_requires=('sanic', 'aioredis'),
