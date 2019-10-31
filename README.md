@@ -12,6 +12,7 @@ You can install this package as usual with pip:
     pip install sanic-redis
 
 Example
+------------
 
 ```python
 from sanic import Sanic
@@ -51,6 +52,54 @@ async def test2(request):
         await r.set('key', 'value2')
         result = await r.get('key')
         return text(result)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+Create multiple aioredis instances
+------------
+
+```.python
+from sanic import Sanic
+from sanic.response import text
+from sanic_redis import SanicRedis
+
+
+app = Sanic(__name__)
+
+
+app.config.update({
+    'REDIS_1': {
+        'address': ('127.0.0.1', 6379),
+        'db': 0,
+    },
+    'REDIS_2': {
+        'address': ('127.0.0.1', 6379),
+        'db': 1,
+  }
+})
+
+
+r1 = SanicRedis(app, config_name="REDIS_1")
+r2 = SanicRedis(app, config_name="REDIS_2")
+
+
+@app.route('/test3')
+async def test3(request):
+    with await r1.conn as r:
+        await r.set('key', 'value1')
+    with await r2.conn as r:
+            await r.set('key', 'value1')
+
+
+@app.route('/test4')
+async def test4(request):
+    with await request.app.redis_1 as r:
+        await r.set('key', 'value1')
+    with await request.app.redis_2 as r:
+        await r.set('key', 'value2')
 
 
 if __name__ == '__main__':
