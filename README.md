@@ -85,6 +85,10 @@ app.config.update({
 r1 = SanicRedis(app, config_name="REDIS_1")
 r2 = SanicRedis(app, config_name="REDIS_2")
 
+#r1 = SanicRedis(config_name="REDIS_1")
+#r2 = SanicRedis(config_name="REDIS_2")
+#r1.init(app)
+#r2.init(app)
 
 @app.route('/test3')
 async def test3(request):
