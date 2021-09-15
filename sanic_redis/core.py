@@ -1,44 +1,45 @@
+import aioredis.client
 from sanic import Sanic
-from aioredis import create_redis_pool
+from sanic.log import logger
+from aioredis import from_url
 
 
 class SanicRedis:
-    def __init__(self, app: Sanic=None, config_name="REDIS", redis_config: dict=None):
-        self.app = app
-        self.config = redis_config
-        self.conn = None
-        self.config_name = config_name
+
+    conn: aioredis.client.Redis
+    app: Sanic
+    redis_url: str
+    config_name: str
+
+    def __init__(self, app: Sanic = None, config_name="REDIS", redis_url: str = ""):
+        self.app: Sanic = app
+        self.redis_url: str = redis_url
+        self.conn: aioredis.client.Redis
+        self.config_name: str = config_name
 
         if app:
             self.init_app(app=app)
 
-    def init_app(self, app: Sanic, config_name=None, redis_config: dict=None):
+    def init_app(self, app: Sanic, config_name: str = None, redis_url: str = ""):
         self.app = app
-        self.config = redis_config
+        self.redis_url = redis_url
         if config_name:
             self.config_name = config_name
 
         @app.listener('before_server_start')
-        async def aio_redis_configure(_app, loop):
-            _c = dict(loop=loop)
-            if self.config:
-                config = self.config
+        async def aio_redis_configure(_app: Sanic, _loop):
+            if self.redis_url:
+                _redis_url = self.redis_url
             else:
-                config = _app.config.get(self.config_name)
-
-            if not config:
-                raise ValueError("You must specify a redis_config or set the REDIS Sanic config variable")
-            if not isinstance(config, dict):
-                raise TypeError("Redis Config must be a dict")
-            for key in ['address', 'db', 'password', 'ssl', 'encoding', 'minsize',
-                        'maxsize', 'timeout']:
-                if key in config:
-                    _c.update({key: config.get(key)})
-            _redis = await create_redis_pool(**_c)
-            setattr(_app, self.config_name.lower(), _redis)
+                _redis_url = _app.config.get(self.config_name)
+            if not _redis_url:
+                raise ValueError("You must specify a redis_url or set the {} Sanic config variable".format(config_name))
+            logger.info("[sanic-redis] connecting")
+            _redis = await from_url(_redis_url)
+            setattr(_app.ctx, self.config_name.lower(), _redis)
             self.conn = _redis
 
         @app.listener('after_server_stop')
         async def close_redis(_app, _loop):
-            self.conn.close()
-            await self.conn.wait_closed()
+            logger.info("[sanic-redis] closing")
+            await self.conn.close()
