@@ -1,2 +1,3 @@
 sanic
-aioredis
+redis>=4.4.0
+hiredis==2.2.1
