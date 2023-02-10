@@ -1,8 +1,10 @@
 sanic-redis
 ==============
-Redis support for sanic.
+Async Redis support for sanic.
 
-Built on top of [aioredis](https://github.com/aio-libs/aioredis).
+Built on top of Async version of [Redis library](https://redis-py.readthedocs.io/en/stable/examples/asyncio_examples.html).
+
+[HiRedis](https://github.com/redis/hiredis-py) is used by default for parsing the read results for a higher performance.
 
 Installation
 ------------
