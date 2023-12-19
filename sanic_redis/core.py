@@ -71,4 +71,4 @@ class SanicRedis:
         @app.listener('after_server_stop')
         async def close_redis(_app, _loop):
             logger.info("[sanic-redis] closing")
-            await self.conn.close()
+            await self.conn.aclose()
