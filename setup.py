@@ -36,7 +36,7 @@ setup_kwargs = {
     "url": "https://github.com/strahe/sanic-redis",
     "license": "MIT",
     "author": "octal",
-    "author_email": "octal@posteo.net",
+    "author_email": "octalgah@gmail.com",
     "description": (
         'Adds redis support to Sanic'
     ),
@@ -44,7 +44,7 @@ setup_kwargs = {
     "packages": find_packages(exclude=("tests", "tests.*")),
     "platforms": "any",
     "python_requires": ">=3.7",
-    "keywords": ['sanic', 'redis', 'aioredis'],
+    "keywords": ['sanic', 'redis', 'hiredis'],
     "zip_safe": False,
     "classifiers": [
         "Development Status :: 4 - Beta",
@@ -69,13 +69,13 @@ types_ujson = "types-ujson" + env_dependency
 
 requirements = [
     "sanic",
-    "redis>=4.4.0",
-    "hiredis==2.2.1"
+    "redis>=5.0.0",
+    "hiredis==2.3.2"
 ]
 
 tests_require = [
     "sanic-testing>=22.9.0",
-    "pytest==7.1.*",
+    "pytest==8.0.*",
     "coverage",
     "beautifulsoup4",
     "pytest-sanic",

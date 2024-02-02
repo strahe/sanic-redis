@@ -15,25 +15,25 @@ You can install this package as usual with pip:
 
 Config
 -----------
-
 For example:
-
-    redis://[[username]:[password]]@localhost:6379/0
-    rediss://[[username]:[password]]@localhost:6379/0
-    unix://[[username]:[password]]@/path/to/socket.sock?db=0
+```
+redis://[[username]:[password]]@localhost:6379/0
+rediss://[[username]:[password]]@localhost:6379/0
+unix://[username@]/path/to/socket.sock?db=0[&password=password]
+```
 
 Three URL schemes are supported:
+  - `redis://` creates a TCP socket connection. See more at:
+    <https://www.iana.org/assignments/uri-schemes/prov/redis>
+  - `rediss://` creates a SSL wrapped TCP socket connection. See more at:
+    <https://www.iana.org/assignments/uri-schemes/prov/rediss>
+  - ``unix://``: creates a Unix Domain Socket connection.
 
-- `redis://` creates a TCP socket connection. See more at:
-  <https://www.iana.org/assignments/uri-schemes/prov/redis>
-- `rediss://` creates a SSL wrapped TCP socket connection. See more at:
-  <https://www.iana.org/assignments/uri-schemes/prov/rediss>
-- ``unix://``: creates a Unix Domain Socket connection.
+Details: https://github.com/redis/redis-py/blob/1a7d474268fe7072686369adc20aa498d63f063e/redis/client.py#L103-L141
 
 All allow querystring options:
-
-```python
-URL_QUERY_ARGUMENT_PARSERS = {
+```
+{
     "db": int,
     "socket_timeout": float,
     "socket_connect_timeout": float,
@@ -44,8 +44,7 @@ URL_QUERY_ARGUMENT_PARSERS = {
     "ssl_check_hostname": bool,
 }
 ```
-
-Details: https://github.com/aio-libs/aioredis-py/blob/v2.0.0/aioredis/connection.py#L1113
+Details: https://github.com/redis/redis-py/blob/cc4bc1a544d1030aec1696baef2861064fa8dd1c/redis/asyncio/connection.py#L854-L864
 
 Example
 ------------
@@ -104,12 +103,6 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 ```
-
-Recipes (Transactions, Pub/Sub, SCAN)
----------
-
-https://aioredis.readthedocs.io/en/latest/examples/
-
 
 Resources
 ---------
