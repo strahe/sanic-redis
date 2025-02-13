@@ -7,7 +7,7 @@ from redis.asyncio import client, from_url
 from sanic import Sanic
 from sanic.log import logger
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 
 class SanicRedis:

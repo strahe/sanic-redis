@@ -69,8 +69,8 @@ types_ujson = "types-ujson" + env_dependency
 
 requirements = [
     "sanic",
-    "redis>=5.0.0",
-    "hiredis==2.3.2"
+    "redis>=5.0.0,<6.0",
+    "hiredis>=2.3.2,<3.0"
 ]
 
 tests_require = [
