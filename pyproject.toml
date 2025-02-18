@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sanic-redis"
+dynamic = ["version"]
+description = "Adds redis support to Sanic"
+readme = "README.md"
+requires-python = ">=3.7"
+license = { text = "MIT" }
+authors = [{ name = "octal", email = "octalgah@gmail.com" }]
+keywords = ["sanic", "redis", "hiredis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Internet :: WWW/HTTP :: Session",
+]
+dependencies = ["sanic", "redis>=5.0.0,<6.0", "hiredis>=2.3.2,<3.0"]
+
+[project.optional-dependencies]
+test = [
+    "sanic-testing>=22.9.0",
+    "pytest==8.0.*",
+    "coverage",
+    "beautifulsoup4",
+    "pytest-sanic",
+    "pytest-benchmark",
+    "chardet==3.*",
+    "flake8",
+    "black",
+    "isort>=5.0.0",
+    "bandit",
+    "mypy>=0.901,<0.910",
+    "docutils",
+    "pygments",
+    "uvicorn<0.15.0",
+    "slotscheck>=0.8.0,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/strahe/sanic-redis"
+
+[tool.setuptools]
+packages = ["sanic_redis"]
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = { attr = "sanic_redis.core.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
