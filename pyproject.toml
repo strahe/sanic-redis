@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=42", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -54,8 +54,11 @@ Homepage = "https://github.com/strahe/sanic-redis"
 packages = ["sanic_redis"]
 zip-safe = false
 
+[tool.setuptools_scm]
+version_file = "sanic_redis/_version.py"
+
 [tool.setuptools.dynamic]
-version = { attr = "sanic_redis.core.__version__" }
+version = { attr = "sanic_redis._version.__version__" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

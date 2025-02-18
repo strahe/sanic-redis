@@ -7,8 +7,6 @@ from redis.asyncio import client, from_url
 from sanic import Sanic
 from sanic.log import logger
 
-__version__ = "0.5.1"
-
 
 class SanicRedis:
     """
@@ -22,7 +20,7 @@ class SanicRedis:
     single_connection_client: bool
     auto_close_connection_pool: Optional[bool]
 
-    def __init__(self, app: Sanic = None, config_name="REDIS",
+    def __init__(self, app: Optional[Sanic] = None, config_name="REDIS",
                  redis_url: str = "",
                  single_connection_client: bool = False,
                  auto_close_connection_pool: Optional[bool] = None
@@ -30,7 +28,6 @@ class SanicRedis:
         """
             init method of class
         """
-        self.__version__ = __version__
         self.config_name = config_name
         self.redis_url = redis_url
         self.single_connection_client = single_connection_client
@@ -41,13 +38,6 @@ class SanicRedis:
                           config_name=config_name,
                           single_connection_client=single_connection_client,
                           auto_close_connection_pool=auto_close_connection_pool)
-
-    def version(self):
-        """
-            dummy function to pass pylint
-        """
-
-        return self.__version__
 
     def init_app(self, app: Sanic, config_name: Optional[str] = None,
                  redis_url: Optional[str] = None,
