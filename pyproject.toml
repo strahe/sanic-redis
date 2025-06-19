@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools-scm>=8"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -23,27 +23,10 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Internet :: WWW/HTTP :: Session",
 ]
-dependencies = ["sanic", "redis>=6.0.0,<7.0", "hiredis>=3.0.0,<4.0"]
+dependencies = ["sanic>=25.0.0", "redis>=6.0.0,<7.0", "hiredis>=3.0.0,<4.0"]
 
 [project.optional-dependencies]
-test = [
-    "sanic-testing>=22.9.0",
-    "pytest==8.0.*",
-    "coverage",
-    "beautifulsoup4",
-    "pytest-sanic",
-    "pytest-benchmark",
-    "chardet==3.*",
-    "flake8",
-    "black",
-    "isort>=5.0.0",
-    "bandit",
-    "mypy>=0.901,<0.910",
-    "docutils",
-    "pygments",
-    "uvicorn<0.15.0",
-    "slotscheck>=0.8.0,<1",
-]
+test = ["sanic-testing>=25.0.0", "pytest>=7.0.0", "coverage", "pytest-asyncio"]
 
 [project.urls]
 Homepage = "https://github.com/strahe/sanic-redis"
@@ -61,6 +44,12 @@ version = { attr = "sanic_redis._version.__version__" }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+asyncio_mode = "auto"
+markers = ["asyncio: marks tests as async (deselect with '-m \"not asyncio\"')"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore:websockets.legacy is deprecated:DeprecationWarning:websockets.*",
+]
 
 [tool.pyright]
 venvPath = "."

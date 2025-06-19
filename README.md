@@ -1,5 +1,8 @@
 sanic-redis
 ==============
+
+[![Tests](https://github.com/strahe/sanic-redis/workflows/Tests/badge.svg)](https://github.com/strahe/sanic-redis/actions)
+
 Async Redis support for sanic.
 
 Built on top of Async version of [Redis library](https://redis-py.readthedocs.io/en/stable/examples/asyncio_examples.html).
@@ -102,6 +105,16 @@ async def test3(request):
 if __name__ == '__main__':
     app.run(debug=True)
 
+```
+
+Testing
+-------
+
+```bash
+pip install -e .[test]
+docker-compose -f docker-compose.test.yml up -d
+pytest tests/
+docker-compose -f docker-compose.test.yml down
 ```
 
 Resources
