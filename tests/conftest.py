@@ -1,6 +1,6 @@
 """
 Test configuration for Sanic-Redis
-Simple setup focused on integration testing
+Provides fixtures and utilities for testing
 """
 
 import os
@@ -29,33 +29,25 @@ def redis_url():
 
 
 @pytest.fixture
-def app(app_name, redis_url):
-    """Basic Sanic app with Redis configured"""
-    my_app = Sanic(app_name)
+def basic_app(app_name):
+    """Basic Sanic app without Redis configured"""
+    return Sanic(app_name)
 
+
+@pytest.fixture
+def app(app_name, redis_url):
+    """Sanic app with Redis configured using URL parameter"""
+    my_app = Sanic(app_name)
     redis = SanicRedis()
     redis.init_app(my_app, redis_url=redis_url)
-
     return my_app
 
 
 @pytest.fixture
 def app_with_config(app_name, redis_url):
-    """Sanic app using config variable instead of direct URL"""
+    """Sanic app with Redis configured using config variable"""
     my_app = Sanic(app_name)
     my_app.config.REDIS = redis_url
-
     redis = SanicRedis()
     redis.init_app(my_app)
-
     return my_app
-
-
-@pytest.fixture
-def sample_data():
-    """Sample data for testing"""
-    return {
-        "string_key": "test_value",
-        "int_key": 42,
-        "dict_key": {"name": "test", "value": 123}
-    }

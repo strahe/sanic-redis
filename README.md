@@ -32,7 +32,8 @@ Three URL schemes are supported:
     <https://www.iana.org/assignments/uri-schemes/prov/rediss>
   - ``unix://``: creates a Unix Domain Socket connection.
 
-Details: https://github.com/redis/redis-py/blob/1a7d474268fe7072686369adc20aa498d63f063e/redis/client.py#L103-L141
+Details:
+https://github.com/redis/redis-py/blob/0d0cfe66eaa541dfc078398f37277e5de8d11dc8/redis/client.py#L132-L168
 
 All allow querystring options:
 ```
@@ -40,14 +41,17 @@ All allow querystring options:
     "db": int,
     "socket_timeout": float,
     "socket_connect_timeout": float,
-    "socket_keepalive": bool,
-    "retry_on_timeout": bool,
+    "socket_keepalive": to_bool,
+    "retry_on_timeout": to_bool,
+    "retry_on_error": list,
     "max_connections": int,
     "health_check_interval": int,
-    "ssl_check_hostname": bool,
+    "ssl_check_hostname": to_bool,
+    "timeout": float,
 }
 ```
-Details: https://github.com/redis/redis-py/blob/cc4bc1a544d1030aec1696baef2861064fa8dd1c/redis/asyncio/connection.py#L854-L864
+Details:
+https://github.com/redis/redis-py/blob/0d0cfe66eaa541dfc078398f37277e5de8d11dc8/redis/connection.py#L1235-L1246
 
 Example
 ------------
