@@ -5,8 +5,10 @@ Provides fixtures and utilities for testing
 
 import os
 import re
+
 import pytest
 from sanic import Sanic
+
 from sanic_redis import SanicRedis
 
 # Redis configuration for tests

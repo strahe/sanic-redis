@@ -117,7 +117,7 @@ Testing
 ```bash
 pip install -e .[test]
 docker-compose -f docker-compose.test.yml up -d
-REDIS_URL=redis://127.0.0.1:6379 pytest tests/
+pytest tests/
 docker-compose -f docker-compose.test.yml down
 ```
 

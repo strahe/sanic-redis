@@ -6,6 +6,7 @@ Integration tests covering core functionality
 import pytest
 from sanic import Sanic
 from sanic.response import json
+
 from sanic_redis import SanicRedis
 
 
@@ -21,7 +22,11 @@ class TestSanicRedisCore:
         assert redis1.single_connection_client is False
 
         # Pattern 2: Constructor with parameters
-        redis2 = SanicRedis(config_name="CUSTOM", redis_url="redis://test:6379", single_connection_client=True)
+        redis2 = SanicRedis(
+            config_name="CUSTOM",
+            redis_url="redis://test:6379",
+            single_connection_client=True,
+        )
         assert redis2.config_name == "CUSTOM"
         assert redis2.redis_url == "redis://test:6379"
         assert redis2.single_connection_client is True
@@ -29,7 +34,12 @@ class TestSanicRedisCore:
         # Pattern 3: init_app method
         app = Sanic(app_name)
         redis3 = SanicRedis()
-        redis3.init_app(app, config_name="INIT_APP", redis_url=redis_url, single_connection_client=True)
+        redis3.init_app(
+            app,
+            config_name="INIT_APP",
+            redis_url=redis_url,
+            single_connection_client=True,
+        )
         assert redis3.app == app
         assert redis3.config_name == "INIT_APP"
         assert redis3.redis_url == redis_url
@@ -40,7 +50,9 @@ class TestSanicRedisCore:
         app = Sanic(app_name)
         app.config.REDIS = "redis://config-url:6379"
 
-        redis = SanicRedis(config_name="CONSTRUCTOR", redis_url="redis://constructor:6379")
+        redis = SanicRedis(
+            config_name="CONSTRUCTOR", redis_url="redis://constructor:6379"
+        )
         redis.init_app(app, config_name="INIT_APP", redis_url=redis_url)
 
         # init_app parameters should take precedence
@@ -71,11 +83,13 @@ class TestSanicRedisCore:
             # Cleanup
             await redis_conn.delete("integration_test_key")
 
-            return json({
-                "has_redis": hasattr(request.app.ctx, 'redis'),
-                "ping_success": ping_result,
-                "value_retrieved": value.decode() if value else None
-            })
+            return json(
+                {
+                    "has_redis": hasattr(request.app.ctx, "redis"),
+                    "ping_success": ping_result,
+                    "value_retrieved": value.decode() if value else None,
+                }
+            )
 
         request, response = await app.asgi_client.get("/test")
         assert response.status_code == 200
@@ -113,13 +127,16 @@ class TestSanicRedisCore:
             await request.app.ctx.redis_main.delete("main_key")
             await request.app.ctx.redis_cache.delete("cache_key")
 
-            return json({
-                "main_ping": main_ping,
-                "cache_ping": cache_ping,
-                "main_value": main_value.decode() if main_value else None,
-                "cache_value": cache_value.decode() if cache_value else None,
-                "instances_different": id(request.app.ctx.redis_main) != id(request.app.ctx.redis_cache)
-            })
+            return json(
+                {
+                    "main_ping": main_ping,
+                    "cache_ping": cache_ping,
+                    "main_value": main_value.decode() if main_value else None,
+                    "cache_value": cache_value.decode() if cache_value else None,
+                    "instances_different": id(request.app.ctx.redis_main)
+                    != id(request.app.ctx.redis_cache),
+                }
+            )
 
         request, response = await app.asgi_client.get("/multi")
         assert response.status_code == 200
@@ -174,7 +191,7 @@ class TestSanicRedisCore:
             "redis://user:pass@localhost:6379/1",
             "rediss://localhost:6379",
             "unix:///tmp/redis.sock",
-            "redis://localhost:6379?socket_timeout=5&max_connections=10"
+            "redis://localhost:6379?socket_timeout=5&max_connections=10",
         ]
 
         for url in test_urls:
@@ -188,19 +205,26 @@ class TestSanicRedisCore:
         redis = SanicRedis(
             config_name="ORIGINAL",
             redis_url="redis://original:6379",
-            single_connection_client=False
+            single_connection_client=False,
         )
 
         # Full update
-        redis.init_app(app, config_name="UPDATED", redis_url=redis_url, single_connection_client=True)
+        redis.init_app(
+            app,
+            config_name="UPDATED",
+            redis_url=redis_url,
+            single_connection_client=True,
+        )
         assert redis.config_name == "UPDATED"
         assert redis.redis_url == redis_url
         assert redis.single_connection_client is True
 
         # Partial update (None values should not override)
-        redis.init_app(app, config_name=None, redis_url=None, single_connection_client=None)
+        redis.init_app(
+            app, config_name=None, redis_url=None, single_connection_client=None
+        )
         assert redis.config_name == "UPDATED"  # Should remain
-        assert redis.redis_url == redis_url     # Should remain
+        assert redis.redis_url == redis_url  # Should remain
         assert redis.single_connection_client is True  # Should remain
 
     def test_config_name_mapping(self, app_name):
@@ -210,10 +234,10 @@ class TestSanicRedisCore:
         test_cases = [
             ("REDIS", "redis"),
             ("REDIS_MAIN", "redis_main"),
-            ("MY_CACHE_DB", "my_cache_db")
+            ("MY_CACHE_DB", "my_cache_db"),
         ]
 
-        for config_name, expected_attr in test_cases:
+        for config_name, _ in test_cases:
             redis = SanicRedis(config_name=config_name)
             redis.init_app(app, redis_url="redis://dummy:6379")
             assert redis.config_name == config_name
@@ -232,7 +256,12 @@ class TestSanicRedisCore:
 
         # Test class attributes
         redis = SanicRedis()
-        required_attrs = ['config_name', 'redis_url', 'single_connection_client', 'init_app']
+        required_attrs = [
+            "config_name",
+            "redis_url",
+            "single_connection_client",
+            "init_app",
+        ]
         for attr in required_attrs:
             assert hasattr(redis, attr)
 
