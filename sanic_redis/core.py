@@ -58,30 +58,38 @@ class SanicRedis:
             self.redis_url = redis_url
         if config_name:
             self.config_name = config_name
-        if single_connection_client:
+        if single_connection_client is not None:
             self.single_connection_client = single_connection_client
+
+        redis_url = self.redis_url
+        config_name = self.config_name
+        ctx_name = config_name.lower()
+        single_connection_client = self.single_connection_client
 
         @app.listener("before_server_start")
         async def redis_configure(_app: Sanic):
-            if self.redis_url:
-                _redis_url = self.redis_url
+            if redis_url:
+                _redis_url = redis_url
             else:
-                _redis_url = _app.config.get(self.config_name)
+                _redis_url = _app.config.get(config_name)
             if not _redis_url:
                 raise ValueError(
                     f"You must specify a redis_url or set the "
                     f"{config_name} Sanic config variable"
                 )
             logger.info("[sanic-redis] connecting")
-            _redis = await from_url(
+            _redis = from_url(
                 _redis_url,
-                single_connection_client=self.single_connection_client,
+                single_connection_client=single_connection_client,
             )
-            setattr(_app.ctx, self.config_name.lower(), _redis)
+            setattr(_app.ctx, ctx_name, _redis)
             self.conn = _redis
 
         @app.listener("after_server_stop")
         async def close_redis(_app):
             logger.info("[sanic-redis] closing")
-            if self.conn is not None:
-                await self.conn.aclose()
+            _redis = getattr(_app.ctx, ctx_name, None)
+            if _redis is not None:
+                await _redis.aclose()
+                if self.conn is _redis:
+                    self.conn = None

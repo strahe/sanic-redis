@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
@@ -29,15 +29,27 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    name: Python ${{ matrix.python-version }} / Redis ${{ matrix.redis-version }}
+    name: Python ${{ matrix.python.version }} / ${{ matrix.dependency-profile }}
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        redis-version: ["7", "8"]
+        python:
+          - version: "3.9"
+            tox-factor: py39
+          - version: "3.10"
+            tox-factor: py310
+          - version: "3.11"
+            tox-factor: py311
+          - version: "3.12"
+            tox-factor: py312
+          - version: "3.13"
+            tox-factor: py313
+          - version: "3.14"
+            tox-factor: py314
+        dependency-profile: ["deps-min", "deps-latest"]
 
     services:
       redis:
-        image: redis:${{ matrix.redis-version }}-alpine
+        image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
@@ -49,20 +61,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - name: Set up Python ${{ matrix.python.version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python.version }}
 
-      - name: Install dependencies
+      - name: Install tox
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[test]
+          pip install "tox>=4"
 
       - name: Run tests
         run: |
-          pytest tests/ -v
+          tox -e ${{ matrix.python.tox-factor }}-${{ matrix.dependency-profile }}
         env:
           REDIS_URL: redis://localhost:6379
           TEST_REDIS_DB: 15
-          EXPECTED_REDIS_MAJOR: ${{ matrix.redis-version }}
