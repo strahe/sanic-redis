@@ -60,7 +60,7 @@ class TestSanicRedisCore:
         assert redis.redis_url == redis_url
 
     @pytest.mark.asyncio
-    async def test_sanic_integration(self, app_name, redis_url):
+    async def test_sanic_integration(self, app_name, redis_url, expected_redis_major):
         """Test integration with Sanic application and actual Redis operations"""
         app = Sanic(app_name)
         redis = SanicRedis()
@@ -73,6 +73,10 @@ class TestSanicRedisCore:
 
             # Test connection
             ping_result = await redis_conn.ping()
+            redis_major = None
+            if expected_redis_major:
+                server_info = await redis_conn.info(section="server")
+                redis_major = server_info["redis_version"].split(".", 1)[0]
 
             # Test write operation
             await redis_conn.set("integration_test_key", "integration_test_value")
@@ -87,6 +91,7 @@ class TestSanicRedisCore:
                 {
                     "has_redis": hasattr(request.app.ctx, "redis"),
                     "ping_success": ping_result,
+                    "redis_major": redis_major,
                     "value_retrieved": value.decode() if value else None,
                 }
             )
@@ -95,6 +100,8 @@ class TestSanicRedisCore:
         assert response.status_code == 200
         assert response.json["has_redis"] is True
         assert response.json["ping_success"] is True
+        if expected_redis_major:
+            assert response.json["redis_major"] == expected_redis_major
         assert response.json["value_retrieved"] == "integration_test_value"
 
     @pytest.mark.asyncio

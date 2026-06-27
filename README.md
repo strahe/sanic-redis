@@ -116,10 +116,14 @@ Testing
 
 ```bash
 pip install -e .[test]
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 pytest tests/
-docker-compose -f docker-compose.test.yml down
+docker compose -f docker-compose.test.yml down
 ```
+
+The test Redis service defaults to Redis 8. Set `REDIS_VERSION=7` to run the
+same tests against Redis 7. Set `EXPECTED_REDIS_MAJOR` to assert the running
+server major version during tests.
 
 Resources
 ---------

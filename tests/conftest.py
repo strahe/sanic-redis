@@ -31,6 +31,12 @@ def redis_url():
 
 
 @pytest.fixture
+def expected_redis_major():
+    """Get expected Redis major version for environment validation"""
+    return os.getenv("EXPECTED_REDIS_MAJOR")
+
+
+@pytest.fixture
 def basic_app(app_name):
     """Basic Sanic app without Redis configured"""
     return Sanic(app_name)
