@@ -14,7 +14,7 @@ class SanicRedis:
     Redis Class for Sanic
     """
 
-    conn: client.Redis
+    conn: Optional[client.Redis]
     app: Sanic
     redis_url: str
     config_name: str = "REDIS"
@@ -33,6 +33,7 @@ class SanicRedis:
         self.config_name = config_name
         self.redis_url = redis_url
         self.single_connection_client = single_connection_client
+        self.conn = None
         if app:
             self.init_app(
                 app=app,
@@ -61,7 +62,7 @@ class SanicRedis:
             self.single_connection_client = single_connection_client
 
         @app.listener("before_server_start")
-        async def redis_configure(_app: Sanic, _loop):
+        async def redis_configure(_app: Sanic):
             if self.redis_url:
                 _redis_url = self.redis_url
             else:
@@ -80,6 +81,7 @@ class SanicRedis:
             self.conn = _redis
 
         @app.listener("after_server_stop")
-        async def close_redis(_app, _loop):
+        async def close_redis(_app):
             logger.info("[sanic-redis] closing")
-            await self.conn.aclose()
+            if self.conn is not None:
+                await self.conn.aclose()
