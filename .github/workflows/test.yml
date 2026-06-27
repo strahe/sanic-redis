@@ -29,13 +29,15 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    name: Python ${{ matrix.python-version }} / Redis ${{ matrix.redis-version }}
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        redis-version: ["7", "8"]
 
     services:
       redis:
-        image: redis:7-alpine
+        image: redis:${{ matrix.redis-version }}-alpine
         ports:
           - 6379:6379
         options: >-
@@ -63,3 +65,4 @@ jobs:
         env:
           REDIS_URL: redis://localhost:6379
           TEST_REDIS_DB: 15
+          EXPECTED_REDIS_MAJOR: ${{ matrix.redis-version }}
