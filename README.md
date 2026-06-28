@@ -83,9 +83,9 @@ redis2.init_app(app)
 
 @app.route('/test1')
 async def test1(request):
-    async with redis1.conn as r:
-        await r.set("key1", "value1")
-        result = await r.get("key1")
+    r = redis1.conn
+    await r.set("key1", "value1")
+    result = await r.get("key1")
     return text(str(result))
 
 
@@ -100,9 +100,9 @@ async def test2(request):
 @app.route('/test3')
 async def test3(request):
     # request.app.ctx.{redis_name}, the {redis_name} == config_name.lower()
-    async with request.app.ctx.redis1 as r:
-        await r.set('key3', 'value3')
-        result = await r.get('key3')
+    r = request.app.ctx.redis1
+    await r.set('key3', 'value3')
+    result = await r.get('key3')
     return text(str(result))
 
 
@@ -110,6 +110,10 @@ if __name__ == '__main__':
     app.run(debug=True)
 
 ```
+
+Use `request.app.ctx.<name>` as the runtime connection source. If one
+`SanicRedis` instance is shared across multiple Sanic apps, `conn` is only a
+convenience handle for the most recently started app.
 
 Testing
 -------

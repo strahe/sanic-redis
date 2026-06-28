@@ -15,10 +15,11 @@ class SanicRedis:
     """
 
     conn: Optional[client.Redis]
-    app: Sanic
+    app: Optional[Sanic]
     redis_url: str
     config_name: str = "REDIS"
     single_connection_client: bool
+    auto_close_connection_pool: Optional[bool]
 
     def __init__(
         self,
@@ -26,6 +27,7 @@ class SanicRedis:
         config_name="REDIS",
         redis_url: str = "",
         single_connection_client: bool = False,
+        auto_close_connection_pool: Optional[bool] = None,
     ):
         """
         init method of class
@@ -33,6 +35,8 @@ class SanicRedis:
         self.config_name = config_name
         self.redis_url = redis_url
         self.single_connection_client = single_connection_client
+        self.auto_close_connection_pool = auto_close_connection_pool
+        self.app = None
         self.conn = None
         if app:
             self.init_app(
@@ -40,6 +44,7 @@ class SanicRedis:
                 redis_url=redis_url,
                 config_name=config_name,
                 single_connection_client=single_connection_client,
+                auto_close_connection_pool=auto_close_connection_pool,
             )
 
     def init_app(
@@ -48,6 +53,7 @@ class SanicRedis:
         config_name: Optional[str] = None,
         redis_url: Optional[str] = None,
         single_connection_client: Optional[bool] = None,
+        auto_close_connection_pool: Optional[bool] = None,
     ):
         """
         init_app for Sanic
@@ -60,11 +66,14 @@ class SanicRedis:
             self.config_name = config_name
         if single_connection_client is not None:
             self.single_connection_client = single_connection_client
+        if auto_close_connection_pool is not None:
+            self.auto_close_connection_pool = auto_close_connection_pool
 
         redis_url = self.redis_url
         config_name = self.config_name
         ctx_name = config_name.lower()
         single_connection_client = self.single_connection_client
+        auto_close_connection_pool = self.auto_close_connection_pool
 
         @app.listener("before_server_start")
         async def redis_configure(_app: Sanic):
@@ -78,10 +87,14 @@ class SanicRedis:
                     f"{config_name} Sanic config variable"
                 )
             logger.info("[sanic-redis] connecting")
-            _redis = from_url(
-                _redis_url,
-                single_connection_client=single_connection_client,
-            )
+            from_url_kwargs = {
+                "single_connection_client": single_connection_client,
+            }
+            if auto_close_connection_pool is not None:
+                from_url_kwargs["auto_close_connection_pool"] = (
+                    auto_close_connection_pool
+                )
+            _redis = from_url(_redis_url, **from_url_kwargs)
             setattr(_app.ctx, ctx_name, _redis)
             self.conn = _redis
 

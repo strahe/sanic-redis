@@ -36,17 +36,21 @@ class TestSanicRedisUnit:
         assert redis.config_name == "REDIS"
         assert redis.redis_url == ""
         assert redis.single_connection_client is False
+        assert redis.auto_close_connection_pool is None
+        assert redis.app is None
         assert redis.conn is None
 
         custom = SanicRedis(
             config_name="CACHE",
             redis_url="redis://example:6379/1",
             single_connection_client=True,
+            auto_close_connection_pool=False,
         )
 
         assert custom.config_name == "CACHE"
         assert custom.redis_url == "redis://example:6379/1"
         assert custom.single_connection_client is True
+        assert custom.auto_close_connection_pool is False
 
     def test_init_app_updates_only_explicit_parameters(self, app_name, redis_url):
         app = Sanic(app_name)
@@ -54,6 +58,7 @@ class TestSanicRedisUnit:
             config_name="ORIGINAL",
             redis_url="redis://original:6379/0",
             single_connection_client=True,
+            auto_close_connection_pool=True,
         )
 
         redis.init_app(
@@ -61,23 +66,27 @@ class TestSanicRedisUnit:
             config_name="UPDATED",
             redis_url=redis_url,
             single_connection_client=False,
+            auto_close_connection_pool=False,
         )
 
         assert redis.app is app
         assert redis.config_name == "UPDATED"
         assert redis.redis_url == redis_url
         assert redis.single_connection_client is False
+        assert redis.auto_close_connection_pool is False
 
         redis.init_app(
             app,
             config_name=None,
             redis_url=None,
             single_connection_client=None,
+            auto_close_connection_pool=None,
         )
 
         assert redis.config_name == "UPDATED"
         assert redis.redis_url == redis_url
         assert redis.single_connection_client is False
+        assert redis.auto_close_connection_pool is False
 
     def test_package_exports_public_objects(self):
         assert SanicRedis is not None
@@ -90,6 +99,7 @@ class TestSanicRedisUnit:
             "config_name",
             "redis_url",
             "single_connection_client",
+            "auto_close_connection_pool",
             "init_app",
         ):
             assert hasattr(redis, attr)
@@ -151,7 +161,12 @@ class TestSanicRedisStartup:
         app = Sanic(app_name)
         app.config.REDIS = "redis://config:6379/1"
         redis = SanicRedis(single_connection_client=True)
-        redis.init_app(app, redis_url=redis_url, single_connection_client=False)
+        redis.init_app(
+            app,
+            redis_url=redis_url,
+            single_connection_client=False,
+            auto_close_connection_pool=False,
+        )
 
         @app.get("/")
         async def handler(request):
@@ -164,7 +179,10 @@ class TestSanicRedisStartup:
         assert calls == [
             (
                 redis_url,
-                {"single_connection_client": False},
+                {
+                    "single_connection_client": False,
+                    "auto_close_connection_pool": False,
+                },
             )
         ]
 
