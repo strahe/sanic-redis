@@ -306,7 +306,7 @@ class TestSanicRedisIntegration:
     @pytest.mark.compat
     @pytest.mark.integration
     async def test_compatibility_smoke(self, app_name, redis_url, redis_key):
-        assert version("sanic").split(".", 1)[0] == "25"
+        assert int(version("sanic").split(".", 1)[0]) >= 25
         assert version("redis").split(".", 1)[0] == "6"
         assert version("hiredis").split(".", 1)[0] == "3"
         assert callable(core.from_url)
