@@ -32,64 +32,75 @@ def get_listener(app, event):
     )
 
 
+def get_listeners(app, event):
+    return [
+        listener.listener
+        for listener in app._future_listeners
+        if listener.event == event
+    ]
+
+
+def major_minor(package):
+    parts = version(package).split(".", 2)
+    return int(parts[0]), int(parts[1])
+
+
 class TestSanicRedisUnit:
     def test_initializes_with_defaults_and_custom_values(self):
         redis = SanicRedis()
 
         assert redis.config_name == "REDIS"
+        assert redis.ctx_name is None
         assert redis.redis_url == ""
         assert redis.single_connection_client is False
         assert redis.auto_close_connection_pool is None
-        assert redis.app is None
-        assert redis.conn is None
+        assert redis.from_url_kwargs == {}
+        assert not hasattr(redis, "app")
+        assert not hasattr(redis, "conn")
 
         custom = SanicRedis(
             config_name="CACHE",
+            ctx_name="cache_client",
             redis_url="redis://example:6379/1",
             single_connection_client=True,
             auto_close_connection_pool=False,
+            from_url_kwargs={"decode_responses": True},
         )
 
         assert custom.config_name == "CACHE"
+        assert custom.ctx_name == "cache_client"
         assert custom.redis_url == "redis://example:6379/1"
         assert custom.single_connection_client is True
         assert custom.auto_close_connection_pool is False
+        assert custom.from_url_kwargs == {"decode_responses": True}
 
-    def test_init_app_updates_only_explicit_parameters(self, app_name, redis_url):
+    def test_init_app_does_not_mutate_default_configuration(self, app_name, redis_url):
         app = Sanic(app_name)
         redis = SanicRedis(
             config_name="ORIGINAL",
+            ctx_name="original_client",
             redis_url="redis://original:6379/0",
             single_connection_client=True,
             auto_close_connection_pool=True,
+            from_url_kwargs={"decode_responses": True},
         )
 
         redis.init_app(
             app,
             config_name="UPDATED",
+            ctx_name="updated_client",
             redis_url=redis_url,
             single_connection_client=False,
             auto_close_connection_pool=False,
+            from_url_kwargs={"encoding": "utf-8"},
         )
 
-        assert redis.app is app
-        assert redis.config_name == "UPDATED"
-        assert redis.redis_url == redis_url
-        assert redis.single_connection_client is False
-        assert redis.auto_close_connection_pool is False
-
-        redis.init_app(
-            app,
-            config_name=None,
-            redis_url=None,
-            single_connection_client=None,
-            auto_close_connection_pool=None,
-        )
-
-        assert redis.config_name == "UPDATED"
-        assert redis.redis_url == redis_url
-        assert redis.single_connection_client is False
-        assert redis.auto_close_connection_pool is False
+        assert redis.config_name == "ORIGINAL"
+        assert redis.ctx_name == "original_client"
+        assert redis.redis_url == "redis://original:6379/0"
+        assert redis.single_connection_client is True
+        assert redis.auto_close_connection_pool is True
+        assert redis.from_url_kwargs == {"decode_responses": True}
 
     def test_package_exports_public_objects(self):
         assert SanicRedis is not None
@@ -100,9 +111,11 @@ class TestSanicRedisUnit:
         redis = SanicRedis()
         for attr in (
             "config_name",
+            "ctx_name",
             "redis_url",
             "single_connection_client",
             "auto_close_connection_pool",
+            "from_url_kwargs",
             "init_app",
         ):
             assert hasattr(redis, attr)
@@ -110,7 +123,7 @@ class TestSanicRedisUnit:
 
 class TestSanicRedisStartup:
     @pytest.mark.asyncio
-    async def test_startup_uses_config_url_and_closes_client(
+    async def test_startup_uses_config_url_and_closes_ctx_client(
         self, app_name, monkeypatch
     ):
         fake = FakeRedis()
@@ -129,17 +142,12 @@ class TestSanicRedisStartup:
 
         @app.get("/")
         async def handler(request):
-            return json(
-                {
-                    "ctx_has_client": request.app.ctx.redis_cache is fake,
-                    "plugin_has_client": redis.conn is fake,
-                }
-            )
+            return json({"ctx_has_client": request.app.ctx.redis_cache is fake})
 
         _, response = await app.asgi_client.get("/")
 
         assert response.status_code == 200
-        assert response.json == {"ctx_has_client": True, "plugin_has_client": True}
+        assert response.json == {"ctx_has_client": True}
         assert calls == [
             (
                 "redis://config:6379/1",
@@ -147,9 +155,10 @@ class TestSanicRedisStartup:
             )
         ]
         assert fake.closed is True
+        assert not hasattr(app.ctx, "redis_cache")
 
     @pytest.mark.asyncio
-    async def test_startup_uses_init_app_url_and_explicit_false(
+    async def test_startup_uses_init_app_options_and_from_url_kwargs(
         self, app_name, redis_url, monkeypatch
     ):
         fake = FakeRedis()
@@ -163,17 +172,22 @@ class TestSanicRedisStartup:
 
         app = Sanic(app_name)
         app.config.REDIS = "redis://config:6379/1"
-        redis = SanicRedis(single_connection_client=True)
+        redis = SanicRedis(
+            single_connection_client=True,
+            from_url_kwargs={"decode_responses": True},
+        )
         redis.init_app(
             app,
+            ctx_name="cache",
             redis_url=redis_url,
             single_connection_client=False,
             auto_close_connection_pool=False,
+            from_url_kwargs={"encoding": "utf-8"},
         )
 
         @app.get("/")
         async def handler(request):
-            return json({"ctx_has_client": request.app.ctx.redis is fake})
+            return json({"ctx_has_client": request.app.ctx.cache is fake})
 
         _, response = await app.asgi_client.get("/")
 
@@ -183,11 +197,13 @@ class TestSanicRedisStartup:
             (
                 redis_url,
                 {
+                    "encoding": "utf-8",
                     "single_connection_client": False,
                     "auto_close_connection_pool": False,
                 },
             )
         ]
+        assert redis.from_url_kwargs == {"decode_responses": True}
 
     @pytest.mark.asyncio
     async def test_startup_requires_redis_url_or_config(self, app_name):
@@ -203,7 +219,7 @@ class TestSanicRedisStartup:
             await app.asgi_client.get("/")
 
     @pytest.mark.asyncio
-    async def test_reused_extension_closes_current_app_connection(
+    async def test_reused_extension_keeps_app_options_and_clients_isolated(
         self, app_name, monkeypatch
     ):
         clients = []
@@ -216,27 +232,37 @@ class TestSanicRedisStartup:
 
         monkeypatch.setattr(core, "from_url", fake_from_url)
 
-        redis = SanicRedis()
+        redis = SanicRedis(config_name="DEFAULT", redis_url="redis://default:6379/0")
         first_app = Sanic(f"{app_name}-first")
         second_app = Sanic(f"{app_name}-second")
         third_app = Sanic(f"{app_name}-third")
 
-        redis.init_app(first_app, redis_url="redis://first:6379/0")
-        redis.init_app(second_app, redis_url="redis://second:6379/0")
-        redis.init_app(third_app, redis_url="redis://third:6379/0")
+        redis.init_app(
+            first_app,
+            config_name="FIRST",
+            ctx_name="first_client",
+            redis_url="redis://first:6379/0",
+        )
+        redis.init_app(
+            second_app,
+            config_name="SECOND",
+            ctx_name="second_client",
+            redis_url="redis://second:6379/0",
+        )
+        redis.init_app(third_app, ctx_name="third_client")
 
         await get_listener(first_app, "before_server_start")(first_app)
         await get_listener(second_app, "before_server_start")(second_app)
         await get_listener(third_app, "before_server_start")(third_app)
 
-        first_client = first_app.ctx.redis
-        second_client = second_app.ctx.redis
-        third_client = third_app.ctx.redis
+        first_client = first_app.ctx.first_client
+        second_client = second_app.ctx.second_client
+        third_client = third_app.ctx.third_client
 
         assert [client.url for client in clients] == [
             "redis://first:6379/0",
             "redis://second:6379/0",
-            "redis://third:6379/0",
+            "redis://default:6379/0",
         ]
 
         await get_listener(second_app, "after_server_stop")(second_app)
@@ -244,21 +270,20 @@ class TestSanicRedisStartup:
         assert first_client.closed is False
         assert second_client.closed is True
         assert third_client.closed is False
-        assert redis.conn is third_client
+        assert hasattr(first_app.ctx, "first_client")
+        assert not hasattr(second_app.ctx, "second_client")
+        assert hasattr(third_app.ctx, "third_client")
 
         await get_listener(third_app, "after_server_stop")(third_app)
-
-        assert first_client.closed is False
-        assert third_client.closed is True
-        assert redis.conn is first_client
-
         await get_listener(first_app, "after_server_stop")(first_app)
 
         assert first_client.closed is True
-        assert redis.conn is None
+        assert third_client.closed is True
+        assert not hasattr(first_app.ctx, "first_client")
+        assert not hasattr(third_app.ctx, "third_client")
 
     @pytest.mark.asyncio
-    async def test_repeated_init_app_closes_each_created_connection(
+    async def test_repeated_init_app_keeps_latest_ctx_client_until_its_listener_stops(
         self, app_name, monkeypatch
     ):
         clients = []
@@ -276,16 +301,8 @@ class TestSanicRedisStartup:
         redis.init_app(app, redis_url="redis://first:6379/0")
         redis.init_app(app, redis_url="redis://second:6379/0")
 
-        start_listeners = [
-            listener.listener
-            for listener in app._future_listeners
-            if listener.event == "before_server_start"
-        ]
-        stop_listeners = [
-            listener.listener
-            for listener in app._future_listeners
-            if listener.event == "after_server_stop"
-        ]
+        start_listeners = get_listeners(app, "before_server_start")
+        stop_listeners = get_listeners(app, "after_server_stop")
 
         for start in start_listeners:
             await start(app)
@@ -295,16 +312,20 @@ class TestSanicRedisStartup:
             "redis://second:6379/0",
         ]
         assert app.ctx.redis is clients[1]
-        assert redis.conn is clients[1]
 
-        for stop in stop_listeners:
-            await stop(app)
+        await stop_listeners[0](app)
 
-        assert [client.closed for client in clients] == [True, True]
-        assert redis.conn is None
+        assert clients[0].closed is True
+        assert clients[1].closed is False
+        assert app.ctx.redis is clients[1]
+
+        await stop_listeners[1](app)
+
+        assert clients[1].closed is True
+        assert not hasattr(app.ctx, "redis")
 
     @pytest.mark.asyncio
-    async def test_close_error_cleans_state_and_preserves_exception(
+    async def test_close_error_cleans_ctx_and_preserves_exception(
         self, app_name, monkeypatch
     ):
         clients = []
@@ -334,13 +355,15 @@ class TestSanicRedisStartup:
         with pytest.raises(RuntimeError, match="close failed"):
             await get_listener(second_app, "after_server_stop")(second_app)
 
+        assert first_client.closed is False
         assert second_client.closed is True
-        assert redis.conn is first_client
+        assert hasattr(first_app.ctx, "redis")
+        assert not hasattr(second_app.ctx, "redis")
 
         await get_listener(first_app, "after_server_stop")(first_app)
 
         assert first_client.closed is True
-        assert redis.conn is None
+        assert not hasattr(first_app.ctx, "redis")
 
 
 class TestSanicRedisIntegration:
@@ -348,9 +371,9 @@ class TestSanicRedisIntegration:
     @pytest.mark.compat
     @pytest.mark.integration
     async def test_compatibility_smoke(self, app_name, redis_url, redis_key):
-        assert int(version("sanic").split(".", 1)[0]) >= 25
-        assert version("redis").split(".", 1)[0] == "6"
-        assert version("hiredis").split(".", 1)[0] == "3"
+        assert major_minor("sanic") >= (25, 3)
+        assert version("redis").split(".", 1)[0] in {"7", "8"}
+        assert (3, 2) <= major_minor("hiredis") < (4, 0)
         assert callable(core.from_url)
 
         app = Sanic(app_name)
@@ -366,7 +389,7 @@ class TestSanicRedisIntegration:
             await client.delete(key)
             return json(
                 {
-                    "ctx_has_client": client is redis.conn,
+                    "ctx_has_client": hasattr(request.app.ctx, "redis"),
                     "ping": await client.ping(),
                     "value": value.decode(),
                 }
@@ -422,19 +445,21 @@ class TestSanicRedisIntegration:
 
         @app.get("/")
         async def handler(request):
-            await request.app.ctx.redis_main.set(main_key, "main-value")
-            await request.app.ctx.redis_cache.set(cache_key, "cache-value")
-            main_value = await request.app.ctx.redis_main.get(main_key)
-            cache_value = await request.app.ctx.redis_cache.get(cache_key)
-            await request.app.ctx.redis_main.delete(main_key)
-            await request.app.ctx.redis_cache.delete(cache_key)
+            main_client = request.app.ctx.redis_main
+            cache_client = request.app.ctx.redis_cache
+            await main_client.set(main_key, "main-value")
+            await cache_client.set(cache_key, "cache-value")
+            main_value = await main_client.get(main_key)
+            cache_value = await cache_client.get(cache_key)
+            await main_client.delete(main_key)
+            await cache_client.delete(cache_key)
             return json(
                 {
-                    "main_ping": await request.app.ctx.redis_main.ping(),
-                    "cache_ping": await request.app.ctx.redis_cache.ping(),
+                    "main_ping": await main_client.ping(),
+                    "cache_ping": await cache_client.ping(),
                     "main_value": main_value.decode(),
                     "cache_value": cache_value.decode(),
-                    "separate_clients": main.conn is not cache.conn,
+                    "separate_clients": main_client is not cache_client,
                 }
             )
 

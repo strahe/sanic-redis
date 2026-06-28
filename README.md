@@ -3,7 +3,7 @@ sanic-redis
 
 [![Tests](https://github.com/strahe/sanic-redis/workflows/Tests/badge.svg)](https://github.com/strahe/sanic-redis/actions)
 
-Async Redis support for sanic.
+Async Redis support for Sanic.
 
 Built on top of Async version of [Redis library](https://redis-py.readthedocs.io/en/stable/examples/asyncio_examples.html).
 
@@ -16,42 +16,37 @@ You can install this package as usual with pip:
 
     pip install sanic-redis
 
+Requires Python 3.10+, Sanic 25.3+, redis-py 7 or 8, and hiredis 3.2+.
+
 Config
 -----------
-For example:
-```
-redis://[[username]:[password]]@localhost:6379/0
-rediss://[[username]:[password]]@localhost:6379/0
-unix://[username@]/path/to/socket.sock?db=0[&password=password]
+
+Redis URLs are passed to `redis.asyncio.from_url`. See the redis-py URL
+documentation for supported schemes and query options:
+
+<https://redis.readthedocs.io/en/stable/connections.html#from-url>
+
+Basic setup:
+
+```python
+app.config.REDIS = "redis://localhost:6379/0"
+redis = SanicRedis()
+redis.init_app(app)
 ```
 
-Three URL schemes are supported:
-  - `redis://` creates a TCP socket connection. See more at:
-    <https://www.iana.org/assignments/uri-schemes/prov/redis>
-  - `rediss://` creates a SSL wrapped TCP socket connection. See more at:
-    <https://www.iana.org/assignments/uri-schemes/prov/rediss>
-  - ``unix://``: creates a Unix Domain Socket connection.
+Use `ctx_name` when the Sanic config key and runtime context name should differ:
 
-Details:
-https://github.com/redis/redis-py/blob/0d0cfe66eaa541dfc078398f37277e5de8d11dc8/redis/client.py#L132-L168
+```python
+redis = SanicRedis(config_name="REDIS_CACHE", ctx_name="cache")
+redis.init_app(app)
+```
 
-All allow querystring options:
+Pass redis-py client options with `from_url_kwargs`:
+
+```python
+redis = SanicRedis(from_url_kwargs={"decode_responses": True})
+redis.init_app(app)
 ```
-{
-    "db": int,
-    "socket_timeout": float,
-    "socket_connect_timeout": float,
-    "socket_keepalive": to_bool,
-    "retry_on_timeout": to_bool,
-    "retry_on_error": list,
-    "max_connections": int,
-    "health_check_interval": int,
-    "ssl_check_hostname": to_bool,
-    "timeout": float,
-}
-```
-Details:
-https://github.com/redis/redis-py/blob/0d0cfe66eaa541dfc078398f37277e5de8d11dc8/redis/connection.py#L1235-L1246
 
 Example
 ------------
@@ -74,10 +69,10 @@ app.config.update(
 redis = SanicRedis() # default config_name is "REDIS"
 redis.init_app(app)
 
-redis1 = SanicRedis(config_name="REDIS1")
+redis1 = SanicRedis(config_name="REDIS1", ctx_name="redis1")
 redis1.init_app(app)
 
-redis2 = SanicRedis(config_name="REDIS2")
+redis2 = SanicRedis(config_name="REDIS2", ctx_name="redis2")
 redis2.init_app(app)
 
 
@@ -99,7 +94,6 @@ async def test2(request):
 
 @app.route('/test3')
 async def test3(request):
-    # request.app.ctx.{redis_name}, the {redis_name} == config_name.lower()
     r = request.app.ctx.redis2
     await r.set('key3', 'value3')
     result = await r.get('key3')
@@ -111,9 +105,8 @@ if __name__ == '__main__':
 
 ```
 
-Use `request.app.ctx.<name>` as the runtime connection source. If one
-`SanicRedis` instance is shared across multiple Sanic apps, `conn` is only a
-convenience handle for the most recently active app.
+Use `request.app.ctx.<name>` as the runtime connection source. `SanicRedis.conn`
+and `SanicRedis.app` were removed in 0.7.
 
 Testing
 -------
