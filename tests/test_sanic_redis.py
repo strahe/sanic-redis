@@ -1,311 +1,450 @@
 """
-Tests for Sanic-Redis
-Integration tests covering core functionality
+Tests for the Sanic-Redis plugin behavior.
 """
+
+from importlib.metadata import version
 
 import pytest
 from sanic import Sanic
 from sanic.response import json
 
-from sanic_redis import SanicRedis
+import sanic_redis.core as core
+from sanic_redis import SanicRedis, __version__
 
 
-class TestSanicRedisCore:
-    """Test SanicRedis initialization, configuration, and integration with Sanic"""
+class FakeRedis:
+    def __init__(self, close_error=None):
+        self.closed = False
+        self.url = None
+        self.close_error = close_error
 
-    def test_initialization_patterns(self, app_name, redis_url):
-        """Test all initialization patterns in one comprehensive test"""
-        # Pattern 1: Basic initialization
-        redis1 = SanicRedis()
-        assert redis1.config_name == "REDIS"
-        assert redis1.redis_url == ""
-        assert redis1.single_connection_client is False
+    async def aclose(self):
+        self.closed = True
+        if self.close_error:
+            raise self.close_error
 
-        # Pattern 2: Constructor with parameters
-        redis2 = SanicRedis(
-            config_name="CUSTOM",
-            redis_url="redis://test:6379",
+
+def get_listener(app, event):
+    return next(
+        listener.listener
+        for listener in app._future_listeners
+        if listener.event == event
+    )
+
+
+class TestSanicRedisUnit:
+    def test_initializes_with_defaults_and_custom_values(self):
+        redis = SanicRedis()
+
+        assert redis.config_name == "REDIS"
+        assert redis.redis_url == ""
+        assert redis.single_connection_client is False
+        assert redis.auto_close_connection_pool is None
+        assert redis.app is None
+        assert redis.conn is None
+
+        custom = SanicRedis(
+            config_name="CACHE",
+            redis_url="redis://example:6379/1",
             single_connection_client=True,
+            auto_close_connection_pool=False,
         )
-        assert redis2.config_name == "CUSTOM"
-        assert redis2.redis_url == "redis://test:6379"
-        assert redis2.single_connection_client is True
 
-        # Pattern 3: init_app method
-        app = Sanic(app_name)
-        redis3 = SanicRedis()
-        redis3.init_app(
-            app,
-            config_name="INIT_APP",
-            redis_url=redis_url,
-            single_connection_client=True,
-        )
-        assert redis3.app == app
-        assert redis3.config_name == "INIT_APP"
-        assert redis3.redis_url == redis_url
-        assert redis3.single_connection_client is True
+        assert custom.config_name == "CACHE"
+        assert custom.redis_url == "redis://example:6379/1"
+        assert custom.single_connection_client is True
+        assert custom.auto_close_connection_pool is False
 
-    def test_configuration_precedence(self, app_name, redis_url):
-        """Test configuration parameter precedence rules"""
-        app = Sanic(app_name)
-        app.config.REDIS = "redis://config-url:6379"
-
-        redis = SanicRedis(
-            config_name="CONSTRUCTOR", redis_url="redis://constructor:6379"
-        )
-        redis.init_app(app, config_name="INIT_APP", redis_url=redis_url)
-
-        # init_app parameters should take precedence
-        assert redis.config_name == "INIT_APP"
-        assert redis.redis_url == redis_url
-
-    @pytest.mark.asyncio
-    async def test_sanic_integration(self, app_name, redis_url, expected_redis_major):
-        """Test integration with Sanic application and actual Redis operations"""
-        app = Sanic(app_name)
-        redis = SanicRedis()
-        redis.init_app(app, redis_url=redis_url)
-
-        @app.get("/test")
-        async def handler(request):
-            # Test Redis connection and basic operations
-            redis_conn = request.app.ctx.redis
-
-            # Test connection
-            ping_result = await redis_conn.ping()
-            redis_major = None
-            if expected_redis_major:
-                server_info = await redis_conn.info(section="server")
-                redis_major = server_info["redis_version"].split(".", 1)[0]
-
-            # Test write operation
-            await redis_conn.set("integration_test_key", "integration_test_value")
-
-            # Test read operation
-            value = await redis_conn.get("integration_test_key")
-
-            # Cleanup
-            await redis_conn.delete("integration_test_key")
-
-            return json(
-                {
-                    "has_redis": hasattr(request.app.ctx, "redis"),
-                    "ping_success": ping_result,
-                    "redis_major": redis_major,
-                    "value_retrieved": value.decode() if value else None,
-                }
-            )
-
-        request, response = await app.asgi_client.get("/test")
-        assert response.status_code == 200
-        assert response.json["has_redis"] is True
-        assert response.json["ping_success"] is True
-        if expected_redis_major:
-            assert response.json["redis_major"] == expected_redis_major
-        assert response.json["value_retrieved"] == "integration_test_value"
-
-    @pytest.mark.asyncio
-    async def test_multiple_instances(self, app_name, redis_url):
-        """Test multiple Redis instances in single app with actual operations"""
-        app = Sanic(app_name)
-
-        # Setup multiple instances
-        app.config.REDIS_MAIN = redis_url
-        redis_main = SanicRedis(config_name="REDIS_MAIN")
-        redis_main.init_app(app)
-
-        redis_cache = SanicRedis(config_name="REDIS_CACHE")
-        redis_cache.init_app(app, redis_url=redis_url)
-
-        @app.get("/multi")
-        async def handler(request):
-            # Test both instances can perform operations
-            main_ping = await request.app.ctx.redis_main.ping()
-            cache_ping = await request.app.ctx.redis_cache.ping()
-
-            # Test operations work independently
-            await request.app.ctx.redis_main.set("main_key", "main_value")
-            await request.app.ctx.redis_cache.set("cache_key", "cache_value")
-
-            main_value = await request.app.ctx.redis_main.get("main_key")
-            cache_value = await request.app.ctx.redis_cache.get("cache_key")
-
-            # Cleanup
-            await request.app.ctx.redis_main.delete("main_key")
-            await request.app.ctx.redis_cache.delete("cache_key")
-
-            return json(
-                {
-                    "main_ping": main_ping,
-                    "cache_ping": cache_ping,
-                    "main_value": main_value.decode() if main_value else None,
-                    "cache_value": cache_value.decode() if cache_value else None,
-                    "instances_different": id(request.app.ctx.redis_main)
-                    != id(request.app.ctx.redis_cache),
-                }
-            )
-
-        request, response = await app.asgi_client.get("/multi")
-        assert response.status_code == 200
-        assert response.json["main_ping"] is True
-        assert response.json["cache_ping"] is True
-        assert response.json["main_value"] == "main_value"
-        assert response.json["cache_value"] == "cache_value"
-        assert response.json["instances_different"] is True
-
-    def test_error_handling(self, app_name):
-        """Test error conditions and edge cases"""
-        app = Sanic(app_name)
-        redis = SanicRedis()
-        redis.init_app(app)  # No URL provided
-
-        @app.get("/test")
-        async def handler(request):
-            return json({"ok": True})
-
-        # Should raise ValueError when no Redis URL is configured
-        with pytest.raises(ValueError, match="You must specify a redis_url"):
-            _, response = app.test_client.get("/test")
-
-    @pytest.mark.asyncio
-    async def test_redis_unavailable_handling(self, app_name):
-        """Test behavior when Redis is unavailable"""
-        app = Sanic(app_name)
-        redis = SanicRedis()
-        # Use invalid Redis URL
-        redis.init_app(app, redis_url="redis://nonexistent-host:6379")
-
-        @app.get("/test")
-        async def handler(request):
-            try:
-                await request.app.ctx.redis.ping()
-                return json({"status": "success"})
-            except Exception as e:
-                return json({"status": "error", "error_type": type(e).__name__})
-
-        request, response = await app.asgi_client.get("/test")
-        assert response.status_code == 200
-        assert response.json["status"] == "error"
-        # Should get connection error when Redis is unavailable
-        assert "Error" in response.json["error_type"]
-
-    def test_url_format_support(self, app_name):
-        """Test various Redis URL formats are accepted"""
-        app = Sanic(app_name)
-
-        test_urls = [
-            "redis://localhost:6379",
-            "redis://user:pass@localhost:6379/1",
-            "rediss://localhost:6379",
-            "unix:///tmp/redis.sock",
-            "redis://localhost:6379?socket_timeout=5&max_connections=10",
-        ]
-
-        for url in test_urls:
-            redis = SanicRedis()
-            redis.init_app(app, redis_url=url)
-            assert redis.redis_url == url
-
-    def test_parameter_updates(self, app_name, redis_url):
-        """Test parameter update behavior during init_app"""
+    def test_init_app_updates_only_explicit_parameters(self, app_name, redis_url):
         app = Sanic(app_name)
         redis = SanicRedis(
             config_name="ORIGINAL",
-            redis_url="redis://original:6379",
-            single_connection_client=False,
+            redis_url="redis://original:6379/0",
+            single_connection_client=True,
+            auto_close_connection_pool=True,
         )
 
-        # Full update
         redis.init_app(
             app,
             config_name="UPDATED",
             redis_url=redis_url,
-            single_connection_client=True,
+            single_connection_client=False,
+            auto_close_connection_pool=False,
         )
+
+        assert redis.app is app
         assert redis.config_name == "UPDATED"
         assert redis.redis_url == redis_url
-        assert redis.single_connection_client is True
+        assert redis.single_connection_client is False
+        assert redis.auto_close_connection_pool is False
 
-        # Partial update (None values should not override)
         redis.init_app(
-            app, config_name=None, redis_url=None, single_connection_client=None
+            app,
+            config_name=None,
+            redis_url=None,
+            single_connection_client=None,
+            auto_close_connection_pool=None,
         )
-        assert redis.config_name == "UPDATED"  # Should remain
-        assert redis.redis_url == redis_url  # Should remain
-        assert redis.single_connection_client is True  # Should remain
 
-    def test_config_name_mapping(self, app_name):
-        """Test config name to context attribute mapping"""
-        app = Sanic(app_name)
+        assert redis.config_name == "UPDATED"
+        assert redis.redis_url == redis_url
+        assert redis.single_connection_client is False
+        assert redis.auto_close_connection_pool is False
 
-        test_cases = [
-            ("REDIS", "redis"),
-            ("REDIS_MAIN", "redis_main"),
-            ("MY_CACHE_DB", "my_cache_db"),
-        ]
-
-        for config_name, _ in test_cases:
-            redis = SanicRedis(config_name=config_name)
-            redis.init_app(app, redis_url="redis://dummy:6379")
-            assert redis.config_name == config_name
-            # The actual context attribute creation is tested in integration test
-
-    def test_version_and_exports(self):
-        """Test package exports and version availability"""
-        from sanic_redis import SanicRedis, __version__
-
-        # Test exports
+    def test_package_exports_public_objects(self):
         assert SanicRedis is not None
         assert callable(SanicRedis)
-        assert __version__ is not None
         assert isinstance(__version__, str)
-        assert len(__version__) > 0
+        assert __version__
 
-        # Test class attributes
         redis = SanicRedis()
-        required_attrs = [
+        for attr in (
             "config_name",
             "redis_url",
             "single_connection_client",
+            "auto_close_connection_pool",
             "init_app",
-        ]
-        for attr in required_attrs:
+        ):
             assert hasattr(redis, attr)
 
+
+class TestSanicRedisStartup:
     @pytest.mark.asyncio
-    async def test_connection_lifecycle(self, app_name, redis_url):
-        """Test connection lifecycle and data persistence across requests"""
+    async def test_startup_uses_config_url_and_closes_client(
+        self, app_name, monkeypatch
+    ):
+        fake = FakeRedis()
+        calls = []
+
+        def fake_from_url(url, **kwargs):
+            calls.append((url, kwargs))
+            return fake
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        app.config.REDIS_CACHE = "redis://config:6379/1"
+        redis = SanicRedis(config_name="REDIS_CACHE", single_connection_client=True)
+        redis.init_app(app)
+
+        @app.get("/")
+        async def handler(request):
+            return json(
+                {
+                    "ctx_has_client": request.app.ctx.redis_cache is fake,
+                    "plugin_has_client": redis.conn is fake,
+                }
+            )
+
+        _, response = await app.asgi_client.get("/")
+
+        assert response.status_code == 200
+        assert response.json == {"ctx_has_client": True, "plugin_has_client": True}
+        assert calls == [
+            (
+                "redis://config:6379/1",
+                {"single_connection_client": True},
+            )
+        ]
+        assert fake.closed is True
+
+    @pytest.mark.asyncio
+    async def test_startup_uses_init_app_url_and_explicit_false(
+        self, app_name, redis_url, monkeypatch
+    ):
+        fake = FakeRedis()
+        calls = []
+
+        def fake_from_url(url, **kwargs):
+            calls.append((url, kwargs))
+            return fake
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        app.config.REDIS = "redis://config:6379/1"
+        redis = SanicRedis(single_connection_client=True)
+        redis.init_app(
+            app,
+            redis_url=redis_url,
+            single_connection_client=False,
+            auto_close_connection_pool=False,
+        )
+
+        @app.get("/")
+        async def handler(request):
+            return json({"ctx_has_client": request.app.ctx.redis is fake})
+
+        _, response = await app.asgi_client.get("/")
+
+        assert response.status_code == 200
+        assert response.json == {"ctx_has_client": True}
+        assert calls == [
+            (
+                redis_url,
+                {
+                    "single_connection_client": False,
+                    "auto_close_connection_pool": False,
+                },
+            )
+        ]
+
+    @pytest.mark.asyncio
+    async def test_startup_requires_redis_url_or_config(self, app_name):
+        app = Sanic(app_name)
+        redis = SanicRedis()
+        redis.init_app(app)
+
+        @app.get("/")
+        async def handler(_request):
+            return json({"ok": True})
+
+        with pytest.raises(ValueError, match="REDIS Sanic config variable"):
+            await app.asgi_client.get("/")
+
+    @pytest.mark.asyncio
+    async def test_reused_extension_closes_current_app_connection(
+        self, app_name, monkeypatch
+    ):
+        clients = []
+
+        def fake_from_url(url, **kwargs):
+            client = FakeRedis()
+            client.url = url
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        redis = SanicRedis()
+        first_app = Sanic(f"{app_name}-first")
+        second_app = Sanic(f"{app_name}-second")
+        third_app = Sanic(f"{app_name}-third")
+
+        redis.init_app(first_app, redis_url="redis://first:6379/0")
+        redis.init_app(second_app, redis_url="redis://second:6379/0")
+        redis.init_app(third_app, redis_url="redis://third:6379/0")
+
+        await get_listener(first_app, "before_server_start")(first_app)
+        await get_listener(second_app, "before_server_start")(second_app)
+        await get_listener(third_app, "before_server_start")(third_app)
+
+        first_client = first_app.ctx.redis
+        second_client = second_app.ctx.redis
+        third_client = third_app.ctx.redis
+
+        assert [client.url for client in clients] == [
+            "redis://first:6379/0",
+            "redis://second:6379/0",
+            "redis://third:6379/0",
+        ]
+
+        await get_listener(second_app, "after_server_stop")(second_app)
+
+        assert first_client.closed is False
+        assert second_client.closed is True
+        assert third_client.closed is False
+        assert redis.conn is third_client
+
+        await get_listener(third_app, "after_server_stop")(third_app)
+
+        assert first_client.closed is False
+        assert third_client.closed is True
+        assert redis.conn is first_client
+
+        await get_listener(first_app, "after_server_stop")(first_app)
+
+        assert first_client.closed is True
+        assert redis.conn is None
+
+    @pytest.mark.asyncio
+    async def test_repeated_init_app_closes_each_created_connection(
+        self, app_name, monkeypatch
+    ):
+        clients = []
+
+        def fake_from_url(url, **kwargs):
+            client = FakeRedis()
+            client.url = url
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        redis = SanicRedis()
+        redis.init_app(app, redis_url="redis://first:6379/0")
+        redis.init_app(app, redis_url="redis://second:6379/0")
+
+        start_listeners = [
+            listener.listener
+            for listener in app._future_listeners
+            if listener.event == "before_server_start"
+        ]
+        stop_listeners = [
+            listener.listener
+            for listener in app._future_listeners
+            if listener.event == "after_server_stop"
+        ]
+
+        for start in start_listeners:
+            await start(app)
+
+        assert [client.url for client in clients] == [
+            "redis://first:6379/0",
+            "redis://second:6379/0",
+        ]
+        assert app.ctx.redis is clients[1]
+        assert redis.conn is clients[1]
+
+        for stop in stop_listeners:
+            await stop(app)
+
+        assert [client.closed for client in clients] == [True, True]
+        assert redis.conn is None
+
+    @pytest.mark.asyncio
+    async def test_close_error_cleans_state_and_preserves_exception(
+        self, app_name, monkeypatch
+    ):
+        clients = []
+
+        def fake_from_url(url, **kwargs):
+            close_error = RuntimeError("close failed") if "second" in url else None
+            client = FakeRedis(close_error=close_error)
+            client.url = url
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        redis = SanicRedis()
+        first_app = Sanic(f"{app_name}-first")
+        second_app = Sanic(f"{app_name}-second")
+
+        redis.init_app(first_app, redis_url="redis://first:6379/0")
+        redis.init_app(second_app, redis_url="redis://second:6379/0")
+
+        await get_listener(first_app, "before_server_start")(first_app)
+        await get_listener(second_app, "before_server_start")(second_app)
+
+        first_client = first_app.ctx.redis
+        second_client = second_app.ctx.redis
+
+        with pytest.raises(RuntimeError, match="close failed"):
+            await get_listener(second_app, "after_server_stop")(second_app)
+
+        assert second_client.closed is True
+        assert redis.conn is first_client
+
+        await get_listener(first_app, "after_server_stop")(first_app)
+
+        assert first_client.closed is True
+        assert redis.conn is None
+
+
+class TestSanicRedisIntegration:
+    @pytest.mark.asyncio
+    @pytest.mark.compat
+    @pytest.mark.integration
+    async def test_compatibility_smoke(self, app_name, redis_url, redis_key):
+        assert int(version("sanic").split(".", 1)[0]) >= 25
+        assert version("redis").split(".", 1)[0] == "6"
+        assert version("hiredis").split(".", 1)[0] == "3"
+        assert callable(core.from_url)
+
         app = Sanic(app_name)
         redis = SanicRedis()
         redis.init_app(app, redis_url=redis_url)
+        key = redis_key("smoke")
 
-        @app.get("/set/<value>")
-        async def set_handler(request, value):
-            # Set a value that should persist
-            await request.app.ctx.redis.set("lifecycle_key", value)
-            return json({"action": "set", "value": value})
+        @app.get("/")
+        async def handler(request):
+            client = request.app.ctx.redis
+            await client.set(key, "smoke-value")
+            value = await client.get(key)
+            await client.delete(key)
+            return json(
+                {
+                    "ctx_has_client": client is redis.conn,
+                    "ping": await client.ping(),
+                    "value": value.decode(),
+                }
+            )
 
-        @app.get("/get")
-        async def get_handler(request):
-            # Get the value set in previous request
-            value = await request.app.ctx.redis.get("lifecycle_key")
-            return json({"value": value.decode() if value else None})
+        _, response = await app.asgi_client.get("/")
 
-        @app.get("/cleanup")
-        async def cleanup_handler(request):
-            # Cleanup test data
-            await request.app.ctx.redis.delete("lifecycle_key")
-            return json({"action": "cleanup"})
+        assert response.status_code == 200
+        assert response.json == {
+            "ctx_has_client": True,
+            "ping": True,
+            "value": "smoke-value",
+        }
 
-        # Test data persists across different requests
-        req1, resp1 = await app.asgi_client.get("/set/test_lifecycle_value")
-        assert resp1.status_code == 200
-        assert resp1.json["value"] == "test_lifecycle_value"
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_configured_url_supports_basic_commands(
+        self, app_name, redis_url, redis_key
+    ):
+        app = Sanic(app_name)
+        app.config.REDIS = redis_url
+        redis = SanicRedis()
+        redis.init_app(app)
+        key = redis_key("configured")
 
-        req2, resp2 = await app.asgi_client.get("/get")
-        assert resp2.status_code == 200
-        assert resp2.json["value"] == "test_lifecycle_value"
+        @app.get("/")
+        async def handler(request):
+            await request.app.ctx.redis.set(key, "configured-value")
+            value = await request.app.ctx.redis.get(key)
+            await request.app.ctx.redis.delete(key)
+            return json({"value": value.decode()})
 
-        # Cleanup
-        req3, resp3 = await app.asgi_client.get("/cleanup")
-        assert resp3.status_code == 200
+        _, response = await app.asgi_client.get("/")
+
+        assert response.status_code == 200
+        assert response.json == {"value": "configured-value"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_multiple_instances_use_separate_clients(
+        self, app_name, redis_url, redis_key
+    ):
+        app = Sanic(app_name)
+        app.config.REDIS_MAIN = redis_url
+        main = SanicRedis(config_name="REDIS_MAIN")
+        main.init_app(app)
+
+        cache = SanicRedis(config_name="REDIS_CACHE")
+        cache.init_app(app, redis_url=redis_url)
+
+        main_key = redis_key("main")
+        cache_key = redis_key("cache")
+
+        @app.get("/")
+        async def handler(request):
+            await request.app.ctx.redis_main.set(main_key, "main-value")
+            await request.app.ctx.redis_cache.set(cache_key, "cache-value")
+            main_value = await request.app.ctx.redis_main.get(main_key)
+            cache_value = await request.app.ctx.redis_cache.get(cache_key)
+            await request.app.ctx.redis_main.delete(main_key)
+            await request.app.ctx.redis_cache.delete(cache_key)
+            return json(
+                {
+                    "main_ping": await request.app.ctx.redis_main.ping(),
+                    "cache_ping": await request.app.ctx.redis_cache.ping(),
+                    "main_value": main_value.decode(),
+                    "cache_value": cache_value.decode(),
+                    "separate_clients": main.conn is not cache.conn,
+                }
+            )
+
+        _, response = await app.asgi_client.get("/")
+
+        assert response.status_code == 200
+        assert response.json == {
+            "main_ping": True,
+            "cache_ping": True,
+            "main_value": "main-value",
+            "cache_value": "cache-value",
+            "separate_clients": True,
+        }

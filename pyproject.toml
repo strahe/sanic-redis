@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Internet :: WWW/HTTP :: Session",
 ]
@@ -32,6 +33,7 @@ test = [
     "coverage",
     "pytest-asyncio",
     "ruff",
+    "tox>=4",
 ]
 
 [project.urls]
@@ -51,11 +53,36 @@ version = { attr = "sanic_redis._version.__version__" }
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"
-markers = ["asyncio: marks tests as async (deselect with '-m \"not asyncio\"')"]
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "compat: quick compatibility smoke tests for supported client dependencies",
+    "integration: tests that require a running Redis service",
+]
 addopts = "-v --tb=short"
 filterwarnings = [
     "ignore:websockets.legacy is deprecated:DeprecationWarning:websockets.*",
 ]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+env_list =
+    py{39,310,311,312,313,314}-deps-{min,latest}
+
+[testenv]
+package = wheel
+extras = test
+deps =
+    deps-min: sanic==25.3.0
+    deps-min: redis==6.0.0
+    deps-min: hiredis==3.0.0
+    deps-min: sanic-testing==24.6.0
+pass_env =
+    REDIS_URL
+    TEST_REDIS_DB
+commands =
+    pytest {posargs:tests/}
+"""
 
 [tool.pyright]
 venvPath = "."

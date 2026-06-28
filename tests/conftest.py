@@ -1,17 +1,13 @@
 """
-Test configuration for Sanic-Redis
-Provides fixtures and utilities for testing
+Test fixtures for Sanic-Redis.
 """
 
 import os
 import re
 
 import pytest
-from sanic import Sanic
+from redis.asyncio import from_url
 
-from sanic_redis import SanicRedis
-
-# Redis configuration for tests
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379")
 TEST_REDIS_DB = int(os.getenv("TEST_REDIS_DB", "15"))
 
@@ -20,42 +16,50 @@ slugify = re.compile(r"[^a-zA-Z0-9_\-]")
 
 @pytest.fixture
 def app_name(request):
-    """Generate a unique app name for each test"""
-    return slugify.sub("-", request.node.name)
+    """Generate a unique Sanic app name for each test."""
+    return slugify.sub("-", request.node.nodeid)
 
 
 @pytest.fixture
 def redis_url():
-    """Get Redis URL for testing"""
-    return f"{REDIS_URL}/{TEST_REDIS_DB}"
+    """Build the Redis URL used by integration tests."""
+    return f"{REDIS_URL.rstrip('/')}/{TEST_REDIS_DB}"
 
 
 @pytest.fixture
-def expected_redis_major():
-    """Get expected Redis major version for environment validation"""
-    return os.getenv("EXPECTED_REDIS_MAJOR")
+async def redis_server(redis_url):
+    """Fail quickly when integration Redis is unavailable."""
+    redis = from_url(redis_url)
+    try:
+        await redis.ping()
+    except Exception as exc:
+        pytest.fail(
+            "Redis is required for integration tests. "
+            "Start it with: docker compose -f docker-compose.test.yml up -d. "
+            f"Connection failed with {type(exc).__name__}: {exc}"
+        )
+    finally:
+        await redis.aclose()
 
 
 @pytest.fixture
-def basic_app(app_name):
-    """Basic Sanic app without Redis configured"""
-    return Sanic(app_name)
+async def redis_key(redis_url, redis_server, request):
+    """Create isolated Redis keys and clean up only keys used by the test."""
+    prefix = f"sanic-redis:{slugify.sub('-', request.node.nodeid)}"
+    keys = []
 
+    def build_key(name):
+        key = f"{prefix}:{name}"
+        keys.append(key)
+        return key
 
-@pytest.fixture
-def app(app_name, redis_url):
-    """Sanic app with Redis configured using URL parameter"""
-    my_app = Sanic(app_name)
-    redis = SanicRedis()
-    redis.init_app(my_app, redis_url=redis_url)
-    return my_app
+    yield build_key
 
+    if not keys:
+        return
 
-@pytest.fixture
-def app_with_config(app_name, redis_url):
-    """Sanic app with Redis configured using config variable"""
-    my_app = Sanic(app_name)
-    my_app.config.REDIS = redis_url
-    redis = SanicRedis()
-    redis.init_app(my_app)
-    return my_app
+    redis = from_url(redis_url)
+    try:
+        await redis.delete(*keys)
+    finally:
+        await redis.aclose()
