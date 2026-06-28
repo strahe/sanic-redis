@@ -216,30 +216,88 @@ class TestSanicRedisStartup:
         redis = SanicRedis()
         first_app = Sanic(f"{app_name}-first")
         second_app = Sanic(f"{app_name}-second")
+        third_app = Sanic(f"{app_name}-third")
 
         redis.init_app(first_app, redis_url="redis://first:6379/0")
         redis.init_app(second_app, redis_url="redis://second:6379/0")
+        redis.init_app(third_app, redis_url="redis://third:6379/0")
 
         await get_listener(first_app, "before_server_start")(first_app)
         await get_listener(second_app, "before_server_start")(second_app)
+        await get_listener(third_app, "before_server_start")(third_app)
 
         first_client = first_app.ctx.redis
         second_client = second_app.ctx.redis
+        third_client = third_app.ctx.redis
+
+        assert [client.url for client in clients] == [
+            "redis://first:6379/0",
+            "redis://second:6379/0",
+            "redis://third:6379/0",
+        ]
+
+        await get_listener(second_app, "after_server_stop")(second_app)
+
+        assert first_client.closed is False
+        assert second_client.closed is True
+        assert third_client.closed is False
+        assert redis.conn is third_client
+
+        await get_listener(third_app, "after_server_stop")(third_app)
+
+        assert first_client.closed is False
+        assert third_client.closed is True
+        assert redis.conn is first_client
+
+        await get_listener(first_app, "after_server_stop")(first_app)
+
+        assert first_client.closed is True
+        assert redis.conn is None
+
+    @pytest.mark.asyncio
+    async def test_repeated_init_app_closes_each_created_connection(
+        self, app_name, monkeypatch
+    ):
+        clients = []
+
+        def fake_from_url(url, **kwargs):
+            client = FakeRedis()
+            client.url = url
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        redis = SanicRedis()
+        redis.init_app(app, redis_url="redis://first:6379/0")
+        redis.init_app(app, redis_url="redis://second:6379/0")
+
+        start_listeners = [
+            listener.listener
+            for listener in app._future_listeners
+            if listener.event == "before_server_start"
+        ]
+        stop_listeners = [
+            listener.listener
+            for listener in app._future_listeners
+            if listener.event == "after_server_stop"
+        ]
+
+        for start in start_listeners:
+            await start(app)
 
         assert [client.url for client in clients] == [
             "redis://first:6379/0",
             "redis://second:6379/0",
         ]
+        assert app.ctx.redis is clients[1]
+        assert redis.conn is clients[1]
 
-        await get_listener(first_app, "after_server_stop")(first_app)
+        for stop in stop_listeners:
+            await stop(app)
 
-        assert first_client.closed is True
-        assert second_client.closed is False
-        assert redis.conn is second_client
-
-        await get_listener(second_app, "after_server_stop")(second_app)
-
-        assert second_client.closed is True
+        assert [client.closed for client in clients] == [True, True]
         assert redis.conn is None
 
 

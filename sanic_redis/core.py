@@ -20,6 +20,7 @@ class SanicRedis:
     config_name: str = "REDIS"
     single_connection_client: bool
     auto_close_connection_pool: Optional[bool]
+    _connections: list[client.Redis]
 
     def __init__(
         self,
@@ -38,6 +39,7 @@ class SanicRedis:
         self.auto_close_connection_pool = auto_close_connection_pool
         self.app = None
         self.conn = None
+        self._connections = []
         if app:
             self.init_app(
                 app=app,
@@ -74,9 +76,11 @@ class SanicRedis:
         ctx_name = config_name.lower()
         single_connection_client = self.single_connection_client
         auto_close_connection_pool = self.auto_close_connection_pool
+        redis_conn: Optional[client.Redis] = None
 
         @app.listener("before_server_start")
         async def redis_configure(_app: Sanic):
+            nonlocal redis_conn
             if redis_url:
                 _redis_url = redis_url
             else:
@@ -96,13 +100,21 @@ class SanicRedis:
                 )
             _redis = from_url(_redis_url, **from_url_kwargs)
             setattr(_app.ctx, ctx_name, _redis)
+            self._connections.append(_redis)
+            redis_conn = _redis
             self.conn = _redis
 
         @app.listener("after_server_stop")
         async def close_redis(_app):
+            nonlocal redis_conn
             logger.info("[sanic-redis] closing")
-            _redis = getattr(_app.ctx, ctx_name, None)
+            _redis = redis_conn
             if _redis is not None:
                 await _redis.aclose()
+                redis_conn = None
+                for index, active_conn in enumerate(self._connections):
+                    if active_conn is _redis:
+                        del self._connections[index]
+                        break
                 if self.conn is _redis:
-                    self.conn = None
+                    self.conn = self._connections[-1] if self._connections else None
