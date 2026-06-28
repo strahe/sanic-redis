@@ -110,11 +110,13 @@ class SanicRedis:
             logger.info("[sanic-redis] closing")
             _redis = redis_conn
             if _redis is not None:
-                await _redis.aclose()
-                redis_conn = None
-                for index, active_conn in enumerate(self._connections):
-                    if active_conn is _redis:
-                        del self._connections[index]
-                        break
-                if self.conn is _redis:
-                    self.conn = self._connections[-1] if self._connections else None
+                try:
+                    await _redis.aclose()
+                finally:
+                    redis_conn = None
+                    for index, active_conn in enumerate(self._connections):
+                        if active_conn is _redis:
+                            del self._connections[index]
+                            break
+                    if self.conn is _redis:
+                        self.conn = self._connections[-1] if self._connections else None

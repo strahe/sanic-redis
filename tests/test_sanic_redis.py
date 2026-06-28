@@ -13,12 +13,15 @@ from sanic_redis import SanicRedis, __version__
 
 
 class FakeRedis:
-    def __init__(self):
+    def __init__(self, close_error=None):
         self.closed = False
         self.url = None
+        self.close_error = close_error
 
     async def aclose(self):
         self.closed = True
+        if self.close_error:
+            raise self.close_error
 
 
 def get_listener(app, event):
@@ -298,6 +301,45 @@ class TestSanicRedisStartup:
             await stop(app)
 
         assert [client.closed for client in clients] == [True, True]
+        assert redis.conn is None
+
+    @pytest.mark.asyncio
+    async def test_close_error_cleans_state_and_preserves_exception(
+        self, app_name, monkeypatch
+    ):
+        clients = []
+
+        def fake_from_url(url, **kwargs):
+            close_error = RuntimeError("close failed") if "second" in url else None
+            client = FakeRedis(close_error=close_error)
+            client.url = url
+            clients.append(client)
+            return client
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        redis = SanicRedis()
+        first_app = Sanic(f"{app_name}-first")
+        second_app = Sanic(f"{app_name}-second")
+
+        redis.init_app(first_app, redis_url="redis://first:6379/0")
+        redis.init_app(second_app, redis_url="redis://second:6379/0")
+
+        await get_listener(first_app, "before_server_start")(first_app)
+        await get_listener(second_app, "before_server_start")(second_app)
+
+        first_client = first_app.ctx.redis
+        second_client = second_app.ctx.redis
+
+        with pytest.raises(RuntimeError, match="close failed"):
+            await get_listener(second_app, "after_server_stop")(second_app)
+
+        assert second_client.closed is True
+        assert redis.conn is first_client
+
+        await get_listener(first_app, "after_server_stop")(first_app)
+
+        assert first_client.closed is True
         assert redis.conn is None
 
 
