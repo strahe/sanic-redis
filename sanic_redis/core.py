@@ -99,13 +99,11 @@ class SanicRedis:
                     f"{config_name} Sanic config variable"
                 )
             logger.info("[sanic-redis] connecting")
-            from_url_kwargs = dict(base_from_url_kwargs)
-            from_url_kwargs["single_connection_client"] = single_connection_client
+            redis_kwargs = dict(base_from_url_kwargs)
+            redis_kwargs["single_connection_client"] = single_connection_client
             if auto_close_connection_pool is not None:
-                from_url_kwargs["auto_close_connection_pool"] = (
-                    auto_close_connection_pool
-                )
-            _redis = from_url(_redis_url, **from_url_kwargs)
+                redis_kwargs["auto_close_connection_pool"] = auto_close_connection_pool
+            _redis = from_url(_redis_url, **redis_kwargs)
             setattr(_app.ctx, ctx_name, _redis)
             redis_conn = _redis
 

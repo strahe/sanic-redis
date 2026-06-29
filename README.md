@@ -37,6 +37,7 @@ redis.init_app(app)
 Use `ctx_name` when the Sanic config key and runtime context name should differ:
 
 ```python
+app.config.REDIS_CACHE = "redis://localhost:6379/1"
 redis = SanicRedis(config_name="REDIS_CACHE", ctx_name="cache")
 redis.init_app(app)
 ```
