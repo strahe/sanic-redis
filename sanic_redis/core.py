@@ -41,15 +41,7 @@ class SanicRedis:
         self.auto_close_connection_pool = auto_close_connection_pool
         self.from_url_kwargs = dict(from_url_kwargs or {})
         if app is not None:
-            self.init_app(
-                app=app,
-                redis_url=redis_url,
-                config_name=config_name,
-                ctx_name=ctx_name,
-                single_connection_client=single_connection_client,
-                auto_close_connection_pool=auto_close_connection_pool,
-                from_url_kwargs=from_url_kwargs,
-            )
+            self.init_app(app)
 
     def init_app(
         self,

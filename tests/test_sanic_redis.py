@@ -137,8 +137,7 @@ class TestSanicRedisStartup:
 
         app = Sanic(app_name)
         app.config.REDIS_CACHE = "redis://config:6379/1"
-        redis = SanicRedis(config_name="REDIS_CACHE", single_connection_client=True)
-        redis.init_app(app)
+        SanicRedis(app=app, config_name="REDIS_CACHE", single_connection_client=True)
 
         @app.get("/")
         async def handler(request):
