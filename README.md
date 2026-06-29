@@ -51,6 +51,9 @@ redis = SanicRedis(from_url_kwargs={"decode_responses": True})
 redis.init_app(app)
 ```
 
+Use `single_connection_client` and `auto_close_connection_pool` as
+`SanicRedis` parameters, not inside `from_url_kwargs`.
+
 Example
 ------------
 

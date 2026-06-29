@@ -102,6 +102,20 @@ class TestSanicRedisUnit:
         assert redis.auto_close_connection_pool is True
         assert redis.from_url_kwargs == {"decode_responses": True}
 
+    @pytest.mark.parametrize(
+        "option_name",
+        ("auto_close_connection_pool", "single_connection_client"),
+    )
+    def test_from_url_kwargs_rejects_plugin_parameters(self, app_name, option_name):
+        with pytest.raises(ValueError, match=option_name):
+            SanicRedis(from_url_kwargs={option_name: True})
+
+        app = Sanic(app_name)
+        redis = SanicRedis()
+
+        with pytest.raises(ValueError, match=option_name):
+            redis.init_app(app, from_url_kwargs={option_name: True})
+
     def test_package_exports_public_objects(self):
         assert SanicRedis is not None
         assert callable(SanicRedis)
