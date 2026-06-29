@@ -5,7 +5,7 @@ sanic-redis
 
 Async Redis support for Sanic.
 
-Built on top of Async version of [Redis library](https://redis-py.readthedocs.io/en/stable/examples/asyncio_examples.html).
+Built on top of Async version of [Redis library](https://redis.readthedocs.io/en/stable/examples/asyncio_examples.html).
 
 [HiRedis](https://github.com/redis/hiredis-py) is used by default for parsing the read results for a higher performance.
 
@@ -24,7 +24,7 @@ Config
 Redis URLs are passed to `redis.asyncio.from_url`. See the redis-py URL
 documentation for supported schemes and query options:
 
-<https://redis.readthedocs.io/en/stable/connections.html#from-url>
+<https://redis.readthedocs.io/en/stable/connections.html#redis.Redis.from_url>
 
 Basic setup:
 
