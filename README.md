@@ -2,6 +2,8 @@ sanic-redis
 ==============
 
 [![Tests](https://github.com/strahe/sanic-redis/workflows/Tests/badge.svg)](https://github.com/strahe/sanic-redis/actions)
+[![PyPI version](https://img.shields.io/pypi/v/sanic-redis.svg)](https://pypi.org/project/sanic-redis/)
+[![Python versions](https://img.shields.io/pypi/pyversions/sanic-redis.svg)](https://pypi.org/project/sanic-redis/)
 
 Async Redis support for Sanic.
 
