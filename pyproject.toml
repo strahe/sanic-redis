@@ -7,7 +7,7 @@ name = "sanic-redis"
 dynamic = ["version"]
 description = "Adds redis support to Sanic"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "octal", email = "octalgah@gmail.com" }]
 keywords = ["sanic", "redis", "hiredis"]
@@ -15,7 +15,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -24,7 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Internet :: WWW/HTTP :: Session",
 ]
-dependencies = ["sanic>=25.0.0", "redis>=6.0.0,<7.0", "hiredis>=3.0.0,<4.0"]
+dependencies = ["sanic>=25.3.0", "redis>=7.0.0,<9.0", "hiredis>=3.2.0,<4.0"]
 
 [project.optional-dependencies]
 test = [
@@ -67,15 +66,15 @@ filterwarnings = [
 legacy_tox_ini = """
 [tox]
 env_list =
-    py{39,310,311,312,313,314}-deps-{min,latest}
+    py{310,311,312,313,314}-deps-{min,latest}
 
 [testenv]
 package = wheel
 extras = test
 deps =
     deps-min: sanic==25.3.0
-    deps-min: redis==6.0.0
-    deps-min: hiredis==3.0.0
+    deps-min: redis==7.0.0
+    deps-min: hiredis==3.2.0
     deps-min: sanic-testing==24.6.0
 pass_env =
     REDIS_URL
@@ -89,7 +88,7 @@ venvPath = "."
 venv = ".venv"
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 line-length = 88
 
 [tool.ruff.lint]
