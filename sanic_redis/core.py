@@ -145,7 +145,7 @@ class SanicRedis:
                 try:
                     await _redis.ping()
                 except BaseException:
-                    with suppress(BaseException):
+                    with suppress(Exception):
                         await _redis.aclose()
                     raise
             setattr(_app.ctx, ctx_name, _redis)
