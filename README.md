@@ -26,7 +26,7 @@ Config
 Redis URLs are passed to `redis.asyncio.from_url`. See the redis-py URL
 documentation for supported schemes and query options:
 
-<https://redis.readthedocs.io/en/stable/connections.html#redis.Redis.from_url>
+<https://redis.readthedocs.io/en/stable/connections.html#redis.asyncio.client.Redis.from_url>
 
 Basic setup:
 
