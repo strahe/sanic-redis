@@ -9,16 +9,24 @@ Async Redis support for Sanic.
 
 Built on top of Async version of [Redis library](https://redis.readthedocs.io/en/stable/examples/asyncio_examples.html).
 
-[HiRedis](https://github.com/redis/hiredis-py) is used by default for parsing the read results for a higher performance.
+[HiRedis](https://github.com/redis/hiredis-py) is available as an optional parser for higher throughput.
 
 Installation
 ------------
 
 You can install this package as usual with pip:
 
-    pip install sanic-redis
+```bash
+pip install sanic-redis
+```
 
-Requires Python 3.10+, Sanic 25.3+, redis-py 7 or 8, and hiredis 3.2+.
+Install the optional hiredis parser for higher throughput:
+
+```bash
+pip install "sanic-redis[hiredis]"
+```
+
+Requires Python 3.10+, Sanic 25.3+, and redis-py 7 or 8.
 
 Config
 -----------
@@ -52,7 +60,16 @@ redis.init_app(app)
 ```
 
 Use `single_connection_client` and `auto_close_connection_pool` as
-`SanicRedis` parameters, not inside `from_url_kwargs`.
+`SanicRedis` parameters, not inside `from_url_kwargs` or Redis URL query
+options.
+
+Enable startup validation when the app should fail fast on Redis connection
+errors:
+
+```python
+redis = SanicRedis(ping_on_startup=True)
+redis.init_app(app)
+```
 
 Example
 ------------
@@ -133,4 +150,4 @@ tox -e py313-deps-latest -- -m compat
 Resources
 ---------
 
-- [PyPI](https://pypi.python.org/pypi/sanic-redis)
+- [PyPI](https://pypi.org/project/sanic-redis/)

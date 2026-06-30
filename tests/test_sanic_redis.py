@@ -2,7 +2,7 @@
 Tests for the Sanic-Redis plugin behavior.
 """
 
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 import pytest
 from sanic import Sanic
@@ -13,10 +13,18 @@ from sanic_redis import SanicRedis, __version__
 
 
 class FakeRedis:
-    def __init__(self, close_error=None):
+    def __init__(self, close_error=None, ping_error=None):
         self.closed = False
+        self.pinged = False
         self.url = None
         self.close_error = close_error
+        self.ping_error = ping_error
+
+    async def ping(self):
+        self.pinged = True
+        if self.ping_error:
+            raise self.ping_error
+        return True
 
     async def aclose(self):
         self.closed = True
@@ -45,6 +53,13 @@ def major_minor(package):
     return int(parts[0]), int(parts[1])
 
 
+def optional_major_minor(package):
+    try:
+        return major_minor(package)
+    except PackageNotFoundError:
+        return None
+
+
 class TestSanicRedisUnit:
     def test_initializes_with_defaults_and_custom_values(self):
         redis = SanicRedis()
@@ -55,6 +70,7 @@ class TestSanicRedisUnit:
         assert redis.single_connection_client is False
         assert redis.auto_close_connection_pool is None
         assert redis.from_url_kwargs == {}
+        assert redis.ping_on_startup is False
         assert not hasattr(redis, "app")
         assert not hasattr(redis, "conn")
 
@@ -65,6 +81,7 @@ class TestSanicRedisUnit:
             single_connection_client=True,
             auto_close_connection_pool=False,
             from_url_kwargs={"decode_responses": True},
+            ping_on_startup=True,
         )
 
         assert custom.config_name == "CACHE"
@@ -73,6 +90,7 @@ class TestSanicRedisUnit:
         assert custom.single_connection_client is True
         assert custom.auto_close_connection_pool is False
         assert custom.from_url_kwargs == {"decode_responses": True}
+        assert custom.ping_on_startup is True
 
     def test_init_app_does_not_mutate_default_configuration(self, app_name, redis_url):
         app = Sanic(app_name)
@@ -83,6 +101,7 @@ class TestSanicRedisUnit:
             single_connection_client=True,
             auto_close_connection_pool=True,
             from_url_kwargs={"decode_responses": True},
+            ping_on_startup=True,
         )
 
         redis.init_app(
@@ -93,6 +112,7 @@ class TestSanicRedisUnit:
             single_connection_client=False,
             auto_close_connection_pool=False,
             from_url_kwargs={"encoding": "utf-8"},
+            ping_on_startup=False,
         )
 
         assert redis.config_name == "ORIGINAL"
@@ -101,6 +121,7 @@ class TestSanicRedisUnit:
         assert redis.single_connection_client is True
         assert redis.auto_close_connection_pool is True
         assert redis.from_url_kwargs == {"decode_responses": True}
+        assert redis.ping_on_startup is True
 
     @pytest.mark.parametrize(
         "option_name",
@@ -116,6 +137,22 @@ class TestSanicRedisUnit:
         with pytest.raises(ValueError, match=option_name):
             redis.init_app(app, from_url_kwargs={option_name: True})
 
+    @pytest.mark.parametrize(
+        "option_name",
+        ("auto_close_connection_pool", "single_connection_client"),
+    )
+    def test_explicit_redis_url_rejects_plugin_query_parameters(
+        self, app_name, option_name
+    ):
+        app = Sanic(app_name)
+        redis = SanicRedis()
+
+        with pytest.raises(ValueError, match=option_name):
+            redis.init_app(
+                app,
+                redis_url=f"redis://localhost:6379/0?{option_name}=True",
+            )
+
     def test_package_exports_public_objects(self):
         assert SanicRedis is not None
         assert callable(SanicRedis)
@@ -130,6 +167,7 @@ class TestSanicRedisUnit:
             "single_connection_client",
             "auto_close_connection_pool",
             "from_url_kwargs",
+            "ping_on_startup",
             "init_app",
         ):
             assert hasattr(redis, attr)
@@ -167,6 +205,7 @@ class TestSanicRedisStartup:
                 {"single_connection_client": True},
             )
         ]
+        assert fake.pinged is False
         assert fake.closed is True
         assert not hasattr(app.ctx, "redis_cache")
 
@@ -219,6 +258,91 @@ class TestSanicRedisStartup:
         assert redis.from_url_kwargs == {"decode_responses": True}
 
     @pytest.mark.asyncio
+    async def test_startup_ping_on_startup_checks_client_before_ctx(
+        self, app_name, redis_url, monkeypatch
+    ):
+        fake = FakeRedis()
+        calls = []
+
+        def fake_from_url(url, **kwargs):
+            calls.append((url, kwargs))
+            return fake
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        redis = SanicRedis(ping_on_startup=True)
+        redis.init_app(app, redis_url=redis_url)
+
+        await get_listener(app, "before_server_start")(app)
+
+        assert calls == [(redis_url, {"single_connection_client": False})]
+        assert fake.pinged is True
+        assert app.ctx.redis is fake
+
+        await get_listener(app, "after_server_stop")(app)
+
+    @pytest.mark.asyncio
+    async def test_startup_ping_failure_closes_client_and_preserves_exception(
+        self, app_name, redis_url, monkeypatch
+    ):
+        fake = FakeRedis(
+            close_error=RuntimeError("close failed"),
+            ping_error=RuntimeError("ping failed"),
+        )
+
+        def fake_from_url(url, **kwargs):
+            return fake
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        redis = SanicRedis(ping_on_startup=True)
+        redis.init_app(app, redis_url=redis_url)
+
+        with pytest.raises(RuntimeError, match="ping failed"):
+            await get_listener(app, "before_server_start")(app)
+
+        assert fake.pinged is True
+        assert fake.closed is True
+        assert not hasattr(app.ctx, "redis")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("default_ping", "override_ping", "expected_ping"),
+        (
+            (False, True, True),
+            (True, False, False),
+        ),
+    )
+    async def test_init_app_ping_on_startup_overrides_default(
+        self,
+        app_name,
+        redis_url,
+        monkeypatch,
+        default_ping,
+        override_ping,
+        expected_ping,
+    ):
+        fake = FakeRedis()
+
+        def fake_from_url(url, **kwargs):
+            return fake
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        redis = SanicRedis(ping_on_startup=default_ping)
+        redis.init_app(app, redis_url=redis_url, ping_on_startup=override_ping)
+
+        await get_listener(app, "before_server_start")(app)
+
+        assert fake.pinged is expected_ping
+        assert app.ctx.redis is fake
+
+        await get_listener(app, "after_server_stop")(app)
+
+    @pytest.mark.asyncio
     async def test_startup_requires_redis_url_or_config(self, app_name):
         app = Sanic(app_name)
         redis = SanicRedis()
@@ -230,6 +354,32 @@ class TestSanicRedisStartup:
 
         with pytest.raises(ValueError, match="REDIS Sanic config variable"):
             await app.asgi_client.get("/")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "option_name",
+        ("auto_close_connection_pool", "single_connection_client"),
+    )
+    async def test_config_redis_url_rejects_plugin_query_parameters_before_from_url(
+        self, app_name, monkeypatch, option_name
+    ):
+        calls = []
+
+        def fake_from_url(url, **kwargs):
+            calls.append((url, kwargs))
+            return FakeRedis()
+
+        monkeypatch.setattr(core, "from_url", fake_from_url)
+
+        app = Sanic(app_name)
+        app.config.REDIS = f"redis://localhost:6379/0?{option_name}=True"
+        redis = SanicRedis()
+        redis.init_app(app)
+
+        with pytest.raises(ValueError, match=option_name):
+            await get_listener(app, "before_server_start")(app)
+
+        assert calls == []
 
     @pytest.mark.asyncio
     async def test_reused_extension_keeps_app_options_and_clients_isolated(
@@ -386,7 +536,9 @@ class TestSanicRedisIntegration:
     async def test_compatibility_smoke(self, app_name, redis_url, redis_key):
         assert major_minor("sanic") >= (25, 3)
         assert version("redis").split(".", 1)[0] in {"7", "8"}
-        assert (3, 2) <= major_minor("hiredis") < (4, 0)
+        hiredis_version = optional_major_minor("hiredis")
+        if hiredis_version is not None:
+            assert (3, 2) <= hiredis_version < (4, 0)
         assert callable(core.from_url)
 
         app = Sanic(app_name)

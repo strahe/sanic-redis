@@ -23,13 +23,15 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Internet :: WWW/HTTP :: Session",
 ]
-dependencies = ["sanic>=25.3.0", "redis>=7.0.0,<9.0", "hiredis>=3.2.0,<4.0"]
+dependencies = ["sanic>=25.3.0", "redis>=7.0.0,<9.0"]
 
 [project.optional-dependencies]
+hiredis = ["hiredis>=3.2.0,<4.0"]
 test = [
     "sanic-testing>=24.6.0",
     "pytest>=7.0.0",
     "coverage",
+    "pyright",
     "pytest-asyncio",
     "ruff",
     "tox>=4",
@@ -41,6 +43,9 @@ Homepage = "https://github.com/strahe/sanic-redis"
 [tool.setuptools]
 packages = ["sanic_redis"]
 zip-safe = false
+
+[tool.setuptools.package-data]
+sanic_redis = ["py.typed"]
 
 [tool.setuptools_scm]
 version_file = "sanic_redis/_version.py"
@@ -67,10 +72,13 @@ legacy_tox_ini = """
 [tox]
 env_list =
     py{310,311,312,313,314}-deps-{min,latest}
+    py314-deps-latest-pure
 
 [testenv]
 package = wheel
-extras = test
+extras =
+    test
+    !pure: hiredis
 deps =
     deps-min: sanic==25.3.0
     deps-min: redis==7.0.0
@@ -84,8 +92,19 @@ commands =
 """
 
 [tool.pyright]
-venvPath = "."
+include = ["sanic_redis"]
+pythonVersion = "3.10"
+reportMissingTypeStubs = false
+typeCheckingMode = "basic"
 venv = ".venv"
+venvPath = "."
+
+[tool.coverage.run]
+source = ["sanic_redis"]
+
+[tool.coverage.report]
+omit = ["sanic_redis/_version.py"]
+show_missing = true
 
 [tool.ruff]
 target-version = "py310"
