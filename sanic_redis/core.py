@@ -15,7 +15,11 @@ PLUGIN_FROM_URL_KWARGS = {"auto_close_connection_pool", "single_connection_clien
 
 
 def _reject_plugin_options(option_names: Iterable[str], source: str) -> None:
-    conflicts = PLUGIN_FROM_URL_KWARGS & set(option_names)
+    conflicts = {
+        option_name.lower()
+        for option_name in option_names
+        if option_name.lower() in PLUGIN_FROM_URL_KWARGS
+    }
     if not conflicts:
         return
     names = ", ".join(sorted(conflicts))

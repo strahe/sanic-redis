@@ -124,30 +124,42 @@ class TestSanicRedisUnit:
         assert redis.ping_on_startup is True
 
     @pytest.mark.parametrize(
-        "option_name",
-        ("auto_close_connection_pool", "single_connection_client"),
+        ("option_name", "expected_name"),
+        (
+            ("auto_close_connection_pool", "auto_close_connection_pool"),
+            ("Auto_Close_Connection_Pool", "auto_close_connection_pool"),
+            ("single_connection_client", "single_connection_client"),
+            ("Single_Connection_Client", "single_connection_client"),
+        ),
     )
-    def test_from_url_kwargs_rejects_plugin_parameters(self, app_name, option_name):
-        with pytest.raises(ValueError, match=option_name):
+    def test_from_url_kwargs_rejects_plugin_parameters(
+        self, app_name, option_name, expected_name
+    ):
+        with pytest.raises(ValueError, match=expected_name):
             SanicRedis(from_url_kwargs={option_name: True})
 
         app = Sanic(app_name)
         redis = SanicRedis()
 
-        with pytest.raises(ValueError, match=option_name):
+        with pytest.raises(ValueError, match=expected_name):
             redis.init_app(app, from_url_kwargs={option_name: True})
 
     @pytest.mark.parametrize(
-        "option_name",
-        ("auto_close_connection_pool", "single_connection_client"),
+        ("option_name", "expected_name"),
+        (
+            ("auto_close_connection_pool", "auto_close_connection_pool"),
+            ("Auto_Close_Connection_Pool", "auto_close_connection_pool"),
+            ("single_connection_client", "single_connection_client"),
+            ("Single_Connection_Client", "single_connection_client"),
+        ),
     )
     def test_explicit_redis_url_rejects_plugin_query_parameters(
-        self, app_name, option_name
+        self, app_name, option_name, expected_name
     ):
         app = Sanic(app_name)
         redis = SanicRedis()
 
-        with pytest.raises(ValueError, match=option_name):
+        with pytest.raises(ValueError, match=expected_name):
             redis.init_app(
                 app,
                 redis_url=f"redis://localhost:6379/0?{option_name}=True",
@@ -357,11 +369,16 @@ class TestSanicRedisStartup:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "option_name",
-        ("auto_close_connection_pool", "single_connection_client"),
+        ("option_name", "expected_name"),
+        (
+            ("auto_close_connection_pool", "auto_close_connection_pool"),
+            ("Auto_Close_Connection_Pool", "auto_close_connection_pool"),
+            ("single_connection_client", "single_connection_client"),
+            ("Single_Connection_Client", "single_connection_client"),
+        ),
     )
     async def test_config_redis_url_rejects_plugin_query_parameters_before_from_url(
-        self, app_name, monkeypatch, option_name
+        self, app_name, monkeypatch, option_name, expected_name
     ):
         calls = []
 
@@ -376,7 +393,7 @@ class TestSanicRedisStartup:
         redis = SanicRedis()
         redis.init_app(app)
 
-        with pytest.raises(ValueError, match=option_name):
+        with pytest.raises(ValueError, match=expected_name):
             await get_listener(app, "before_server_start")(app)
 
         assert calls == []
