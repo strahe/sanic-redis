@@ -53,6 +53,10 @@ jobs:
           - python:
               version: "3.14"
               tox-factor: py314
+            dependency-profile: deps-min-pure
+          - python:
+              version: "3.14"
+              tox-factor: py314
             dependency-profile: deps-latest-pure
 
     services:

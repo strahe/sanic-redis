@@ -72,7 +72,7 @@ legacy_tox_ini = """
 [tox]
 env_list =
     py{310,311,312,313,314}-deps-{min,latest}
-    py314-deps-latest-pure
+    py314-deps-{min,latest}-pure
 
 [testenv]
 package = wheel
@@ -82,7 +82,7 @@ extras =
 deps =
     deps-min: sanic==25.3.0
     deps-min: redis==7.0.0
-    deps-min: hiredis==3.2.0
+    deps-min-!pure: hiredis==3.2.0
     deps-min: sanic-testing==24.6.0
 pass_env =
     REDIS_URL

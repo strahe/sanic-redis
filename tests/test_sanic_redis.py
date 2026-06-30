@@ -32,6 +32,10 @@ class FakeRedis:
             raise self.close_error
 
 
+class CloseError(BaseException):
+    pass
+
+
 def get_listener(app, event):
     return next(
         listener.listener
@@ -299,7 +303,7 @@ class TestSanicRedisStartup:
         self, app_name, redis_url, monkeypatch
     ):
         fake = FakeRedis(
-            close_error=RuntimeError("close failed"),
+            close_error=CloseError("close failed"),
             ping_error=RuntimeError("ping failed"),
         )
 
@@ -559,7 +563,7 @@ class TestSanicRedisIntegration:
         assert callable(core.from_url)
 
         app = Sanic(app_name)
-        redis = SanicRedis()
+        redis = SanicRedis(ping_on_startup=True)
         redis.init_app(app, redis_url=redis_url)
         key = redis_key("smoke")
 
