@@ -296,7 +296,7 @@ class TestSanicRedisStartup:
 
     @pytest.mark.asyncio
     async def test_startup_ping_failure_closes_client_and_preserves_exception(
-        self, app_name, redis_url, monkeypatch
+        self, app_name, redis_url, monkeypatch, caplog
     ):
         fake = FakeRedis(
             close_error=RuntimeError("close failed"),
@@ -307,6 +307,7 @@ class TestSanicRedisStartup:
             return fake
 
         monkeypatch.setattr(core, "from_url", fake_from_url)
+        caplog.set_level("WARNING")
 
         app = Sanic(app_name)
         redis = SanicRedis(ping_on_startup=True)
@@ -318,6 +319,7 @@ class TestSanicRedisStartup:
         assert fake.pinged is True
         assert fake.closed is True
         assert not hasattr(app.ctx, "redis")
+        assert "failed to close Redis client after startup ping failure" in caplog.text
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

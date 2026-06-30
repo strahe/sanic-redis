@@ -3,7 +3,6 @@ Sanic-Redis core file
 """
 
 from collections.abc import Iterable, Mapping
-from contextlib import suppress
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
@@ -129,13 +128,13 @@ class SanicRedis:
                 _redis_url = redis_url
             else:
                 _redis_url = _app.config.get(config_name)
-            if not _redis_url:
-                raise ValueError(
-                    f"You must specify a redis_url or set the "
-                    f"{config_name} Sanic config variable"
-                )
+                if not _redis_url:
+                    raise ValueError(
+                        f"You must specify a redis_url or set the "
+                        f"{config_name} Sanic config variable"
+                    )
+                _validate_redis_url(_redis_url)
             logger.info("[sanic-redis] connecting")
-            _validate_redis_url(_redis_url)
             redis_kwargs = dict(base_from_url_kwargs)
             redis_kwargs["single_connection_client"] = single_connection_client
             if auto_close_connection_pool is not None:
@@ -145,8 +144,14 @@ class SanicRedis:
                 try:
                     await _redis.ping()
                 except BaseException:
-                    with suppress(Exception):
+                    try:
                         await _redis.aclose()
+                    except Exception:
+                        logger.warning(
+                            "[sanic-redis] failed to close Redis client after "
+                            "startup ping failure",
+                            exc_info=True,
+                        )
                     raise
             setattr(_app.ctx, ctx_name, _redis)
             redis_conn = _redis
