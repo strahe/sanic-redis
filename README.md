@@ -2,10 +2,12 @@ sanic-redis
 ==============
 
 [![Tests](https://github.com/strahe/sanic-redis/workflows/Tests/badge.svg)](https://github.com/strahe/sanic-redis/actions)
+[![PyPI version](https://img.shields.io/pypi/v/sanic-redis.svg)](https://pypi.org/project/sanic-redis/)
+[![Python versions](https://img.shields.io/pypi/pyversions/sanic-redis.svg)](https://pypi.org/project/sanic-redis/)
 
 Async Redis support for Sanic.
 
-Built on top of Async version of [Redis library](https://redis-py.readthedocs.io/en/stable/examples/asyncio_examples.html).
+Built on top of Async version of [Redis library](https://redis.readthedocs.io/en/stable/examples/asyncio_examples.html).
 
 [HiRedis](https://github.com/redis/hiredis-py) is used by default for parsing the read results for a higher performance.
 
@@ -24,7 +26,7 @@ Config
 Redis URLs are passed to `redis.asyncio.from_url`. See the redis-py URL
 documentation for supported schemes and query options:
 
-<https://redis.readthedocs.io/en/stable/connections.html#from-url>
+<https://redis.readthedocs.io/en/stable/connections.html#redis.asyncio.client.Redis.from_url>
 
 Basic setup:
 
@@ -48,6 +50,9 @@ Pass redis-py client options with `from_url_kwargs`:
 redis = SanicRedis(from_url_kwargs={"decode_responses": True})
 redis.init_app(app)
 ```
+
+Use `single_connection_client` and `auto_close_connection_pool` as
+`SanicRedis` parameters, not inside `from_url_kwargs`.
 
 Example
 ------------

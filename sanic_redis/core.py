@@ -8,6 +8,22 @@ from redis.asyncio import client, from_url
 from sanic import Sanic
 from sanic.log import logger
 
+PLUGIN_FROM_URL_KWARGS = {"auto_close_connection_pool", "single_connection_client"}
+
+
+def _copy_from_url_kwargs(
+    from_url_kwargs: dict[str, Any] | None,
+) -> dict[str, Any]:
+    copied = dict(from_url_kwargs or {})
+    conflicts = PLUGIN_FROM_URL_KWARGS & copied.keys()
+    if conflicts:
+        names = ", ".join(sorted(conflicts))
+        raise ValueError(
+            f"Use SanicRedis parameters for {names}; "
+            "do not pass them in from_url_kwargs"
+        )
+    return copied
+
 
 class SanicRedis:
     """
@@ -39,7 +55,7 @@ class SanicRedis:
         self.redis_url = redis_url
         self.single_connection_client = single_connection_client
         self.auto_close_connection_pool = auto_close_connection_pool
-        self.from_url_kwargs = dict(from_url_kwargs or {})
+        self.from_url_kwargs = _copy_from_url_kwargs(from_url_kwargs)
         if app is not None:
             self.init_app(app)
 
@@ -74,7 +90,7 @@ class SanicRedis:
         base_from_url_kwargs = (
             dict(self.from_url_kwargs)
             if from_url_kwargs is None
-            else dict(from_url_kwargs)
+            else _copy_from_url_kwargs(from_url_kwargs)
         )
         redis_conn: client.Redis | None = None
 
