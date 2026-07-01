@@ -69,6 +69,9 @@ class SanicRedis:
     ) -> None:
         """
         Store default Redis options and optionally bind them to an app.
+
+        When ping_on_startup is true, Redis is pinged before startup stores
+        the client on app.ctx.
         """
         self.config_name = config_name
         self.ctx_name = ctx_name
@@ -93,6 +96,8 @@ class SanicRedis:
     ) -> None:
         """
         Register Redis startup and shutdown listeners on a Sanic app.
+
+        ping_on_startup overrides the instance default when it is not None.
         """
 
         redis_url = self.redis_url if redis_url is None else redis_url
@@ -133,6 +138,8 @@ class SanicRedis:
                         f"You must specify a redis_url or set the "
                         f"{config_name} Sanic config variable"
                     )
+                # Config URLs are only available at startup; explicit URLs are
+                # validated when listeners are registered.
                 _validate_redis_url(_redis_url)
             logger.info("[sanic-redis] connecting")
             redis_kwargs = dict(base_from_url_kwargs)
